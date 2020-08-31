@@ -21,8 +21,10 @@ import static android.surfaceflinger.nano.Layerstrace.LayersTraceFileProto.MAGIC
 
 import static com.google.common.truth.Truth.assertThat;
 
+import android.app.Instrumentation;
 import android.surfaceflinger.nano.Layerstrace.LayersTraceFileProto;
 
+import androidx.test.InstrumentationRegistry;
 import androidx.test.runner.AndroidJUnit4;
 
 import com.google.common.io.Files;
@@ -35,6 +37,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.MethodSorters;
 
 import java.io.File;
+import java.nio.file.Path;
 
 /**
  * Contains {@link LayersTraceMonitor} tests. To run this test: {@code atest
@@ -47,7 +50,9 @@ public class LayersTraceMonitorTest {
 
     @Before
     public void setup() {
-        mLayersTraceMonitor = new LayersTraceMonitor();
+        Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
+        Path outputDir = instrumentation.getTargetContext().getExternalFilesDir(null).toPath();
+        mLayersTraceMonitor = new LayersTraceMonitor(outputDir);
     }
 
     @After
@@ -74,8 +79,11 @@ public class LayersTraceMonitorTest {
     public void captureLayersTrace() throws Exception {
         mLayersTraceMonitor.start();
         mLayersTraceMonitor.stop();
-        File testFile = mLayersTraceMonitor.save("captureLayersTrace").toFile();
+        Path testFilePath = mLayersTraceMonitor.save("captureWindowTrace");
+        File testFile = testFilePath.toFile();
         assertThat(testFile.exists()).isTrue();
+        String calculatedChecksum = TraceMonitor.calculateChecksum(testFilePath);
+        assertThat(calculatedChecksum).isEqualTo(mLayersTraceMonitor.getChecksum());
         byte[] trace = Files.toByteArray(testFile);
         assertThat(trace.length).isGreaterThan(0);
         LayersTraceFileProto mLayerTraceFileProto = LayersTraceFileProto.parseFrom(trace);

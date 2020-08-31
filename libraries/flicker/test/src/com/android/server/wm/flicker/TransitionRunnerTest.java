@@ -24,12 +24,12 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
-import android.os.Environment;
+import android.app.Instrumentation;
 
+import androidx.test.filters.FlakyTest;
+import androidx.test.InstrumentationRegistry;
 import androidx.test.runner.AndroidJUnit4;
 
-import com.android.server.wm.flicker.TransitionRunner.TransitionBuilder;
-import com.android.server.wm.flicker.TransitionRunner.TransitionResult;
 import com.android.server.wm.flicker.monitor.LayersTraceMonitor;
 import com.android.server.wm.flicker.monitor.ScreenRecorder;
 import com.android.server.wm.flicker.monitor.WindowAnimationFrameStatsMonitor;
@@ -45,20 +45,24 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
-import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.List;
 
 /** Contains {@link TransitionRunner} tests. {@code atest FlickerLibTest:TransitionRunnerTest} */
 @RunWith(AndroidJUnit4.class)
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
+@FlakyTest
 public class TransitionRunnerTest {
+    private Instrumentation mInstrumentation = InstrumentationRegistry.getInstrumentation();
     @Mock private SimpleUiTransitions mTransitionsMock;
     @Mock private ScreenRecorder mScreenRecorderMock;
     @Mock private WindowManagerTraceMonitor mWindowManagerTraceMonitorMock;
     @Mock private LayersTraceMonitor mLayersTraceMonitorMock;
     @Mock private WindowAnimationFrameStatsMonitor mWindowAnimationFrameStatsMonitor;
-    @InjectMocks private TransitionBuilder mTransitionBuilder = TransitionRunner.newBuilder();
+
+    @InjectMocks
+    private TransitionRunner.TransitionBuilder mTransitionBuilder =
+            new TransitionRunner.TransitionBuilder(mInstrumentation);
 
     @Before
     public void init() {
@@ -67,7 +71,7 @@ public class TransitionRunnerTest {
 
     @Test
     public void transitionsRunInOrder() {
-        TransitionRunner.newBuilder()
+        mTransitionBuilder
                 .runBeforeAll(mTransitionsMock::turnOnDevice)
                 .runBefore(mTransitionsMock::openApp)
                 .run(mTransitionsMock::performMagic)
@@ -88,7 +92,7 @@ public class TransitionRunnerTest {
 
     @Test
     public void canCombineTransitions() {
-        TransitionRunner.newBuilder()
+        mTransitionBuilder
                 .runBeforeAll(mTransitionsMock::turnOnDevice)
                 .runBeforeAll(mTransitionsMock::turnOnDevice)
                 .runBefore(mTransitionsMock::openApp)
@@ -115,7 +119,7 @@ public class TransitionRunnerTest {
     @Test
     public void emptyTransitionPasses() {
         List<TransitionResult> results =
-                TransitionRunner.newBuilder()
+                mTransitionBuilder
                         .skipLayersTrace()
                         .skipWindowManagerTrace()
                         .build()
@@ -130,7 +134,7 @@ public class TransitionRunnerTest {
     @Test
     public void canRepeatTransitions() {
         final int wantedNumberOfInvocations = 10;
-        TransitionRunner.newBuilder()
+        mTransitionBuilder
                 .runBeforeAll(mTransitionsMock::turnOnDevice)
                 .runBefore(mTransitionsMock::openApp)
                 .run(mTransitionsMock::performMagic)
@@ -165,6 +169,7 @@ public class TransitionRunnerTest {
         orderVerifier
                 .verify(mWindowManagerTraceMonitorMock)
                 .save("mCaptureWmTraceTransitionRunner", 0);
+        orderVerifier.verify(mWindowManagerTraceMonitorMock).getChecksum();
         verifyNoMoreInteractions(mWindowManagerTraceMonitorMock);
     }
 
@@ -183,6 +188,7 @@ public class TransitionRunnerTest {
         orderVerifier
                 .verify(mLayersTraceMonitorMock)
                 .save("mCaptureLayersTraceTransitionRunner", 0);
+        orderVerifier.verify(mLayersTraceMonitorMock).getChecksum();
         verifyNoMoreInteractions(mLayersTraceMonitorMock);
     }
 
@@ -202,17 +208,22 @@ public class TransitionRunnerTest {
         orderVerifier.verify(mScreenRecorderMock).start();
         orderVerifier.verify(mScreenRecorderMock).stop();
         orderVerifier.verify(mScreenRecorderMock).save("mRecordEachRun", 0);
+        orderVerifier.verify(mScreenRecorderMock).getChecksum();
         orderVerifier.verify(mScreenRecorderMock).start();
         orderVerifier.verify(mScreenRecorderMock).stop();
         orderVerifier.verify(mScreenRecorderMock).save("mRecordEachRun", 1);
+        orderVerifier.verify(mScreenRecorderMock).getChecksum();
         verifyNoMoreInteractions(mScreenRecorderMock);
     }
 
     @Test
-    public void canRecordAllRuns() throws IOException {
+    public void canRecordAllRuns() {
         doReturn(
                         Paths.get(
-                                Environment.getExternalStorageDirectory().getAbsolutePath(),
+                                mInstrumentation
+                                        .getTargetContext()
+                                        .getExternalFilesDir(null)
+                                        .getAbsolutePath(),
                                 "mRecordAllRuns.mp4"))
                 .when(mScreenRecorderMock)
                 .save("mRecordAllRuns");

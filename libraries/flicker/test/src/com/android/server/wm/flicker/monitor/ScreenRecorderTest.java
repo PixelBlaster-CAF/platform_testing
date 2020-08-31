@@ -20,6 +20,9 @@ import static android.os.SystemClock.sleep;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import android.app.Instrumentation;
+
+import androidx.test.InstrumentationRegistry;
 import androidx.test.runner.AndroidJUnit4;
 
 import org.junit.After;
@@ -30,6 +33,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.MethodSorters;
 
 import java.io.File;
+import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
@@ -45,12 +49,14 @@ public class ScreenRecorderTest {
 
     @Before
     public void setup() {
-        mScreenRecorder = new ScreenRecorder();
+        Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
+        Path outputDir = instrumentation.getTargetContext().getExternalFilesDir(null).toPath();
+        mScreenRecorder = new ScreenRecorder(outputDir);
     }
 
     @After
     public void teardown() {
-        mScreenRecorder.getPath().toFile().delete();
+        mScreenRecorder.getOutputPath().toFile().delete();
         if (mSavedVideoPath != null) {
             mSavedVideoPath.toFile().delete();
         }
@@ -61,7 +67,7 @@ public class ScreenRecorderTest {
         mScreenRecorder.start();
         sleep(100);
         mScreenRecorder.stop();
-        File file = mScreenRecorder.getPath().toFile();
+        File file = mScreenRecorder.getOutputPath().toFile();
         assertThat(file.exists()).isTrue();
     }
 
@@ -70,7 +76,7 @@ public class ScreenRecorderTest {
         mScreenRecorder.start();
         sleep(100);
         mScreenRecorder.stop();
-        File file = mScreenRecorder.save(TEST_VIDEO_FILENAME).toFile();
-        assertThat(file.exists()).isTrue();
+        Path file = mScreenRecorder.save(TEST_VIDEO_FILENAME);
+        assertThat(Files.exists(file)).isTrue();
     }
 }

@@ -42,17 +42,97 @@ public class WmTraceSubjectTest {
     }
 
     @Test
-    public void testCanTransitionInAppWindow() {
-        WindowManagerTrace trace = readWmTraceFromFile("wm_trace_openchrome2.pb");
+    public void testVisibleAppWindowForRange() {
+        WindowManagerTrace trace = readWmTraceFromFile("wm_trace_openchrome.pb");
 
         assertThat(trace)
-                .showsAppWindowOnTop(
-                        "com.google.android.apps.nexuslauncher/" + ".NexusLauncherActivity")
-                .forRange(174684850717208L, 174685957511016L);
+                .showsAppWindowOnTop("NexusLauncherActivity")
+                .and()
+                .showsAboveAppWindow("ScreenDecorOverlay")
+                .forRange(9213763541297L, 9215536878453L);
+
         assertThat(trace)
-                .showsAppWindowOnTop("com.google.android.apps.nexuslauncher/.NexusLauncherActivity")
+                .showsAppWindowOnTop("com.android.chrome")
+                .and()
+                .showsAppWindow("NexusLauncherActivity")
+                .and()
+                .showsAboveAppWindow("ScreenDecorOverlay")
                 .then()
                 .showsAppWindowOnTop("com.android.chrome")
+                .and()
+                .hidesAppWindow("NexusLauncherActivity")
+                .and()
+                .showsAboveAppWindow("ScreenDecorOverlay")
+                .forRange(9215551505798L, 9216093628925L);
+    }
+
+    @Test
+    public void testCanTransitionInAppWindow() {
+        WindowManagerTrace trace = readWmTraceFromFile("wm_trace_openchrome.pb");
+
+        assertThat(trace)
+                .showsAppWindowOnTop("NexusLauncherActivity")
+                .and()
+                .showsAboveAppWindow("ScreenDecorOverlay")
+                .then()
+                .showsAppWindowOnTop("com.android.chrome")
+                .and()
+                .showsAboveAppWindow("ScreenDecorOverlay")
+                .forAllEntries();
+    }
+
+    @Test
+    public void testCanInspectBeginning() {
+        WindowManagerTrace trace = readWmTraceFromFile("wm_trace_openchrome.pb");
+
+        assertThat(trace)
+                .showsAppWindowOnTop("NexusLauncherActivity")
+                .and()
+                .showsAboveAppWindow("ScreenDecorOverlay")
+                .inTheBeginning();
+    }
+
+    @Test
+    public void testCanInspectEnd() {
+        WindowManagerTrace trace = readWmTraceFromFile("wm_trace_openchrome.pb");
+
+        assertThat(trace)
+                .showsAppWindowOnTop("com.android.chrome")
+                .and()
+                .showsAboveAppWindow("ScreenDecorOverlay")
+                .atTheEnd();
+    }
+
+    @Test
+    public void testCanTransitionNonAppWindow() {
+        WindowManagerTrace trace = readWmTraceFromFile("wm_trace_ime.pb");
+        WmTraceSubject.assertThat(trace)
+                .skipUntilFirstAssertion()
+                .hidesNonAppWindow("InputMethod")
+                .then()
+                .showsNonAppWindow("InputMethod")
+                .forAllEntries();
+    }
+
+    @Test
+    public void testCanTransitionAboveAppWindow() {
+        WindowManagerTrace trace = readWmTraceFromFile("wm_trace_ime.pb");
+        WmTraceSubject.assertThat(trace)
+                .skipUntilFirstAssertion()
+                .hidesAboveAppWindow("InputMethod")
+                .then()
+                .showsAboveAppWindow("InputMethod")
+                .forAllEntries();
+    }
+
+    @Test
+    public void testCanTransitionBelowAppWindow() {
+        WindowManagerTrace trace = readWmTraceFromFile("wm_trace_open_app_cold.pb");
+        WmTraceSubject.assertThat(trace)
+                .skipUntilFirstAssertion()
+                .showsBelowAppWindow("Wallpaper")
+                .then()
+                .hidesBelowAppWindow("Wallpaper")
                 .forAllEntries();
     }
 }

@@ -20,14 +20,17 @@ import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Point;
 import android.graphics.Rect;
+import android.graphics.Region;
 import android.view.Surface;
 import android.view.WindowManager;
 
+import androidx.annotation.NonNull;
 import androidx.test.InstrumentationRegistry;
 
 /** Helper functions to retrieve system window sizes and positions. */
 public class WindowUtils {
 
+    @NonNull
     public static Rect getDisplayBounds() {
         Point display = new Point();
         WindowManager wm =
@@ -46,7 +49,8 @@ public class WindowUtils {
         return wm.getDefaultDisplay().getRotation();
     }
 
-    public static Rect getDisplayBounds(int requestedRotation) {
+    @NonNull
+    public static Region getDisplayBounds(int requestedRotation) {
         Rect displayBounds = getDisplayBounds();
         int currentDisplayRotation = getCurrentRotation();
 
@@ -61,13 +65,14 @@ public class WindowUtils {
         // if the current orientation changes with the requested rotation,
         // flip height and width of display bounds.
         if (displayIsRotated != requestedDisplayIsRotated) {
-            return new Rect(0, 0, displayBounds.height(), displayBounds.width());
+            return new Region(0, 0, displayBounds.height(), displayBounds.width());
         }
 
-        return new Rect(0, 0, displayBounds.width(), displayBounds.height());
+        return new Region(0, 0, displayBounds.width(), displayBounds.height());
     }
 
-    public static Rect getAppPosition(int requestedRotation) {
+    @NonNull
+    public static Region getAppPosition(int requestedRotation) {
         Rect displayBounds = getDisplayBounds();
         int currentDisplayRotation = getCurrentRotation();
 
@@ -82,13 +87,14 @@ public class WindowUtils {
         // display size will change if the display is reflected. Flip height and width of app if the
         // requested rotation is different from the current rotation.
         if (displayIsRotated != requestedAppIsRotated) {
-            return new Rect(0, 0, displayBounds.height(), displayBounds.width());
+            return new Region(0, 0, displayBounds.height(), displayBounds.width());
         }
 
-        return new Rect(0, 0, displayBounds.width(), displayBounds.height());
+        return new Region(0, 0, displayBounds.width(), displayBounds.height());
     }
 
-    public static Rect getStatusBarPosition(int requestedRotation) {
+    @NonNull
+    public static Region getStatusBarPosition(int requestedRotation) {
         Resources resources = InstrumentationRegistry.getContext().getResources();
         String resourceName;
         Rect displayBounds = getDisplayBounds();
@@ -104,38 +110,66 @@ public class WindowUtils {
         int resourceId = resources.getIdentifier(resourceName, "dimen", "android");
         int height = resources.getDimensionPixelSize(resourceId);
 
-        return new Rect(0, 0, width, height);
+        return new Region(0, 0, width, height);
     }
 
-    public static Rect getNavigationBarPosition(int requestedRotation) {
-        Resources resources = InstrumentationRegistry.getContext().getResources();
+    @NonNull
+    public static Region getNavigationBarPosition(int requestedRotation) {
         Rect displayBounds = getDisplayBounds();
-        int displayWidth = Math.min(displayBounds.width(), displayBounds.height());
-        int displayHeight = Math.max(displayBounds.width(), displayBounds.height());
-        int resourceId;
+        int displayWidth;
+        int displayHeight;
+
         if (requestedRotation == Surface.ROTATION_0 || requestedRotation == Surface.ROTATION_180) {
-            resourceId = resources.getIdentifier("navigation_bar_height", "dimen", "android");
-            int height = resources.getDimensionPixelSize(resourceId);
-            return new Rect(0, displayHeight - height, displayWidth, displayHeight);
+            displayWidth = displayBounds.width();
+            displayHeight = displayBounds.height();
         } else {
-            resourceId = resources.getIdentifier("navigation_bar_width", "dimen", "android");
-            int width = resources.getDimensionPixelSize(resourceId);
             // swap display dimensions in landscape or seascape mode
-            int temp = displayHeight;
-            displayHeight = displayWidth;
-            displayWidth = temp;
-            if (requestedRotation == Surface.ROTATION_90) {
-                return new Rect(0, 0, width, displayHeight);
-            } else {
-                return new Rect(displayWidth - width, 0, displayWidth, displayHeight);
-            }
+            displayWidth = displayBounds.height();
+            displayHeight = displayBounds.width();
         }
+
+        int navBarWidth = getDimensionPixelSize("navigation_bar_width");
+        int navBarHeight = getNavigationBarHeight();
+
+        Region navBarLocation;
+        if (requestedRotation == Surface.ROTATION_0
+                || requestedRotation == Surface.ROTATION_180
+                || isGesturalNavigationEnabled()) {
+            // nav bar is at the bottom of the screen
+            navBarLocation =
+                    new Region(0, displayHeight - navBarHeight, displayWidth, displayHeight);
+        } else if (requestedRotation == Surface.ROTATION_90) {
+            return new Region(0, 0, navBarWidth, displayHeight);
+        } else {
+            return new Region(displayWidth - navBarWidth, 0, displayWidth, displayHeight);
+        }
+
+        return navBarLocation;
+    }
+
+    /*
+     * Checks if the device uses gestural navigation
+     */
+    private static boolean isGesturalNavigationEnabled() {
+        Resources resources = InstrumentationRegistry.getContext().getResources();
+        int resourceId =
+                resources.getIdentifier("config_navBarInteractionMode", "integer", "android");
+        return resources.getInteger(resourceId) == 2 /* NAV_BAR_MODE_GESTURAL */;
+    }
+
+    public static int getDimensionPixelSize(String resourceName) {
+        Resources resources = InstrumentationRegistry.getContext().getResources();
+        int resourceId = resources.getIdentifier(resourceName, "dimen", "android");
+        return resources.getDimensionPixelSize(resourceId);
     }
 
     public static int getNavigationBarHeight() {
-        Resources resources = InstrumentationRegistry.getContext().getResources();
-        int resourceId = resources.getIdentifier("navigation_bar_height", "dimen", "android");
-        return resources.getDimensionPixelSize(resourceId);
+        int navBarHeight = getDimensionPixelSize("navigation_bar_height");
+        if (isGesturalNavigationEnabled()) {
+            navBarHeight += getDimensionPixelSize("navigation_bar_gesture_height");
+        }
+
+        return navBarHeight;
     }
 
     public static int getDockedStackDividerInset() {

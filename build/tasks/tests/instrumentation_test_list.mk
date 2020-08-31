@@ -29,6 +29,7 @@ instrumentation_tests := \
     FrameworksServicesTests \
     FrameworksMockingServicesTests \
     WmTests \
+    WmPerfTests \
     JobTestApp \
     SuspendTestApp \
     FrameworksUtilTests \
@@ -66,13 +67,13 @@ instrumentation_tests := \
     TeleServiceTests \
     PresencePollingTests \
     SettingsProviderTest \
-    FrameworksLocationTests \
     FrameworksPrivacyLibraryTests \
     SettingsUITests \
     SettingsPerfTests \
-    ExtServicesUnitTests\
-    FrameworksNetSmokeTests\
-
+    ExtServicesUnitTests \
+    FrameworksNetSmokeTests \
+    FlickerTests \
+    FlickerTestApp \
 
 # Storage Manager may not exist on device
 ifneq ($(filter StorageManager, $(PRODUCT_PACKAGES)),)

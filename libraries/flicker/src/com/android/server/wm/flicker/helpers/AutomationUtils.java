@@ -22,18 +22,14 @@ import static android.view.Surface.ROTATION_0;
 import static com.android.compatibility.common.util.SystemUtil.runShellCommand;
 
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.fail;
 
+import android.app.Instrumentation;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.os.RemoteException;
-import android.support.test.uiautomator.By;
-import android.support.test.uiautomator.BySelector;
-import android.support.test.uiautomator.Configurator;
-import android.support.test.uiautomator.UiDevice;
-import android.support.test.uiautomator.UiObject2;
-import android.support.test.uiautomator.Until;
 import android.util.Log;
 import android.util.Rational;
 import android.view.Surface;
@@ -41,15 +37,24 @@ import android.view.View;
 import android.view.ViewConfiguration;
 
 import androidx.test.InstrumentationRegistry;
+import androidx.test.uiautomator.By;
+import androidx.test.uiautomator.BySelector;
+import androidx.test.uiautomator.Configurator;
+import androidx.test.uiautomator.UiDevice;
+import androidx.test.uiautomator.UiObject2;
+import androidx.test.uiautomator.Until;
 
+import com.android.launcher3.tapl.LauncherInstrumentation;
+import com.android.launcher3.tapl.BaseOverview;
 import com.android.server.wm.flicker.WindowUtils;
 
 import java.util.Locale;
 
 /** Collection of UI Automation helper functions. */
 public class AutomationUtils {
+    protected static final long FIND_TIMEOUT = 10000;
+    private static final String IME_PACKAGE = "com.google.android.inputmethod.latin";
     private static final String SYSTEMUI_PACKAGE = "com.android.systemui";
-    private static final long FIND_TIMEOUT = 10000;
     private static final long LONG_PRESS_TIMEOUT = ViewConfiguration.getLongPressTimeout() * 2L;
     private static final String TAG = "FLICKER";
 
@@ -96,7 +101,7 @@ public class AutomationUtils {
                 navBarVisibleBounds = navBar.getVisibleBounds();
             } else {
                 Log.e(TAG, "Could not find nav bar, infer location");
-                navBarVisibleBounds = WindowUtils.getNavigationBarPosition(ROTATION_0);
+                navBarVisibleBounds = WindowUtils.getNavigationBarPosition(ROTATION_0).getBounds();
             }
 
             // Swipe from nav bar to 2/3rd down the screen.
@@ -127,36 +132,12 @@ public class AutomationUtils {
         device.waitForIdle();
     }
 
-    public static void clearRecents(UiDevice device) {
-        if (isQuickstepEnabled(device)) {
-            openQuickstep(device);
-
-            for (int i = 0; i < 10; i++) {
-                device.swipe(
-                        device.getDisplayWidth() / 2,
-                        device.getDisplayHeight() / 2,
-                        device.getDisplayWidth(),
-                        device.getDisplayHeight() / 2,
-                        5);
-
-                BySelector noRecentItemsSelector =
-                        getLauncherOverviewSelector(device).desc("No recent items");
-                UiObject2 noRecentItems = device.wait(Until.findObject(noRecentItemsSelector), 100);
-
-                // If "No recent items"  is displayed, there're no apps to remove
-                if (noRecentItems != null) {
-                    return;
-                }
-
-                // If "Clear all"  button appears, use it
-                BySelector clearAllSelector =
-                        By.res(device.getLauncherPackageName(), "clear_all_button");
-                UiObject2 clearAllButton = device.wait(Until.findObject(clearAllSelector), 100);
-                if (clearAllButton != null) {
-                    clearAllButton.click();
-                    return;
-                }
-            }
+    public static void clearRecents(Instrumentation instr) {
+        LauncherInstrumentation launcher =
+                new LauncherInstrumentation(InstrumentationRegistry.getInstrumentation());
+        BaseOverview overview = launcher.pressHome().switchToOverview();
+        if (overview.hasTasks()) {
+            overview.dismissAllTasks();
         }
     }
 
@@ -169,6 +150,11 @@ public class AutomationUtils {
         UiObject2 recentsButton = device.wait(Until.findObject(recentsSelector), FIND_TIMEOUT);
         assertNotNull("Unable to find 'recent items' button", recentsButton);
         recentsButton.click(LONG_PRESS_TIMEOUT);
+    }
+
+    public static boolean waitForIME(UiDevice device) {
+        UiObject2 ime = device.wait(Until.findObject(By.pkg(IME_PACKAGE)), FIND_TIMEOUT);
+        return ime != null;
     }
 
     public static void launchSplitScreen(UiDevice device) {
@@ -198,9 +184,13 @@ public class AutomationUtils {
         // Wait for animation to complete.
         sleep(2000);
 
-        UiObject2 divider =
-                device.wait(Until.findObject(getSplitScreenDividerSelector()), FIND_TIMEOUT);
-        assertNotNull("Unable to find Split screen divider", divider);
+        if (!isInSplitScreen(device)) {
+            fail("Unable to find Split screen divider");
+        }
+    }
+
+    public static boolean isInSplitScreen(UiDevice device) {
+        return device.wait(Until.findObject(getSplitScreenDividerSelector()), FIND_TIMEOUT) != null;
     }
 
     private static BySelector getSplitScreenDividerSelector() {
@@ -249,6 +239,10 @@ public class AutomationUtils {
 
         // Wait for animation to complete.
         sleep(2000);
+    }
+
+    public static boolean hasPipWindow(UiDevice device) {
+        return device.wait(Until.findObject(getPipWindowSelector()), FIND_TIMEOUT) != null;
     }
 
     public static BySelector getPipWindowSelector() {
