@@ -18,13 +18,14 @@ package com.android.server.wm.flicker.monitor
 
 import android.os.RemoteException
 import android.view.WindowManagerGlobal
+import com.android.server.wm.flicker.FlickerRunResult
 import java.nio.file.Path
 
 /** Captures Layers trace from SurfaceFlinger.  */
 open class LayersTraceMonitor(
     outputDir: Path
-) : TraceMonitor(outputDir, "layers_trace.pb") {
-    private val windowManager= WindowManagerGlobal.getWindowManagerService()
+) : TransitionMonitor(outputDir, "layers_trace.pb") {
+    private val windowManager = WindowManagerGlobal.getWindowManagerService()
 
     override fun start() {
         try {
@@ -45,6 +46,12 @@ open class LayersTraceMonitor(
 
     override val isEnabled: Boolean
         get() = windowManager.isLayerTracing
+
+    override fun setResult(flickerRunResultBuilder: FlickerRunResult.Builder, traceFile: Path) {
+        flickerRunResultBuilder.layersTraceFile = traceFile
+    }
+
+    override fun getTracePath(builder: FlickerRunResult.Builder) = builder.layersTraceFile
 
     companion object {
         private const val TRACE_FLAGS = 0x7 // TRACE_CRITICAL|TRACE_INPUT|TRACE_COMPOSITION

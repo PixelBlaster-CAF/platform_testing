@@ -66,6 +66,7 @@ instrumentation_tests := \
     CarrierConfigTests \
     TeleServiceTests \
     PresencePollingTests \
+    ImsCommonTests \
     SettingsProviderTest \
     FrameworksPrivacyLibraryTests \
     SettingsUITests \
@@ -74,6 +75,12 @@ instrumentation_tests := \
     FrameworksNetSmokeTests \
     FlickerTests \
     FlickerTestApp \
+    trace_config_detailed.textproto \
+    perfetto_trace_processor_shell
+
+ifneq ($(strip $(BOARD_PERFSETUP_SCRIPT)),)
+instrumentation_tests += perf-setup.sh
+endif
 
 # Storage Manager may not exist on device
 ifneq ($(filter StorageManager, $(PRODUCT_PACKAGES)),)

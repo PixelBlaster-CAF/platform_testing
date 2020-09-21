@@ -17,6 +17,7 @@ instrumentation_metric_tests := \
     BlobStorePerfTests \
     crashcollector \
     CorePerfTests \
+    ContentCapturePerfTests \
     DocumentsUIAppPerfTests \
     MtpServicePerfTests \
     RsBlasBenchmark \
@@ -28,7 +29,8 @@ instrumentation_metric_tests := \
     PackageManagerPerfTests \
     TextClassifierPerfTests \
     WmPerfTests \
-    trace_config_detailed.textproto
+    trace_config_detailed.textproto \
+    perfetto_trace_processor_shell
 
     # TODO(b/72332760): Uncomment when fixed
     #DocumentsUIPerfTests

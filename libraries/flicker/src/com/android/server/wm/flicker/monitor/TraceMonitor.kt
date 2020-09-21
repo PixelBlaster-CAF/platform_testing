@@ -18,12 +18,13 @@ package com.android.server.wm.flicker.monitor
 
 import androidx.annotation.VisibleForTesting
 import com.android.compatibility.common.util.SystemUtil
+import com.android.server.wm.flicker.FlickerRunResult
 import com.google.common.io.BaseEncoding
 import java.io.FileInputStream
 import java.io.IOException
 import java.nio.ByteBuffer
+import java.nio.file.Files
 import java.nio.file.Path
-import java.nio.file.Paths
 import java.security.MessageDigest
 import java.security.NoSuchAlgorithmException
 
@@ -32,8 +33,7 @@ import java.security.NoSuchAlgorithmException
  * trace to another location.
  */
 abstract class TraceMonitor internal constructor(
-    @VisibleForTesting
-    protected var outputPath: Path,
+    @VisibleForTesting var outputPath: Path,
     protected var sourceTraceFilePath: Path
 ) : ITransitionMonitor {
     override var checksum: String = ""
@@ -41,17 +41,17 @@ abstract class TraceMonitor internal constructor(
 
     abstract val isEnabled: Boolean
 
-    internal constructor(
-        outputDir: Path,
-        traceFileName: String
-    ) : this(outputDir, TRACE_DIR.resolve(traceFileName))
+    abstract fun setResult(flickerRunResultBuilder: FlickerRunResult.Builder, traceFile: Path)
 
-    override fun save(testTag: String): Path {
+    override fun save(testTag: String, flickerRunResultBuilder: FlickerRunResult.Builder) {
         outputPath.toFile().mkdirs()
-        val savedTrace = getOutputTraceFilePath(testTag)
+        val savedTrace = outputPath.resolve("${testTag}_${sourceTraceFilePath.fileName}")
         moveFile(sourceTraceFilePath, savedTrace)
+        assert(Files.exists(savedTrace)) { "Unable to save trace file" }
+
+        setResult(flickerRunResultBuilder, savedTrace)
+
         checksum = calculateChecksum(savedTrace)
-        return savedTrace
     }
 
     private fun moveFile(src: Path, dst: Path) {
@@ -59,18 +59,14 @@ abstract class TraceMonitor internal constructor(
         // Note: Due to b/141386109, certain devices do not allow moving the files between
         //       directories with different encryption policies, so manually copy and then
         //       remove the original file
+        //       Moreover, the copied trace file may end up with different permissions, resulting
+        //       in b/162072200, to prevent this, ensure the files are readable after copying
         SystemUtil.runShellCommand("cp $src $dst")
+        SystemUtil.runShellCommand("chmod a+r $dst")
         SystemUtil.runShellCommand("rm $src")
     }
 
-    @VisibleForTesting
-    fun getOutputTraceFilePath(testTag: String?): Path {
-        return outputPath.resolve("${testTag}_${sourceTraceFilePath.fileName}")
-    }
-
     companion object {
-        private val TRACE_DIR = Paths.get("/data/misc/wmtrace/")
-
         @VisibleForTesting
         @JvmStatic
         fun calculateChecksum(traceFile: Path): String {

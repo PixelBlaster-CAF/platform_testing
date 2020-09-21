@@ -5,6 +5,7 @@ platform_tests += \
     ActivityManagerPerfTestsStubApp3 \
     ActivityManagerPerfTestsTestApp \
     AndroidTVJankTests \
+    AndroidXComposeStartupApp \
     ApiDemos \
     AppCompatibilityTest \
     AppLaunch \
@@ -37,7 +38,7 @@ platform_tests += \
     DynamicCodeLoggerIntegrationTests \
     DialerJankTests \
     DownloadManagerTestApp \
-    DummyIME \
+    StubIME \
     ExternalLocAllPermsTestApp \
     ExternalLocTestApp \
     ExternalLocVersionedTestApp_v1 \

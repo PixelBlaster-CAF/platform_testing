@@ -20,7 +20,6 @@ import android.app.Instrumentation
 import android.util.Log
 import android.view.FrameStats
 import com.android.server.wm.flicker.FLICKER_TAG
-import java.nio.file.Path
 import kotlin.math.max
 
 /**
@@ -38,8 +37,8 @@ open class WindowAnimationFrameStatsMonitor(
     private var longestFrameNano = 0L
 
     private fun analyze() {
-        val stats = frameStats ?: throw IllegalStateException("Frame status are only available once " +
-                "monitor has been stopped")
+        val stats = frameStats ?: throw IllegalStateException("Frame status are only available " +
+                "once the monitor has been stopped")
 
         val frameCount = stats.frameCount
         val refreshPeriodNano = stats.refreshPeriodNano
@@ -77,13 +76,6 @@ open class WindowAnimationFrameStatsMonitor(
         frameStats = instrumentation.uiAutomation.windowAnimationFrameStats
         analyze()
     }
-
-    override fun save(testTag: String): Path {
-        throw UnsupportedOperationException("Save not implemented for this monitor")
-    }
-
-    override val checksum: String
-        get() = throw UnsupportedOperationException("Checksum not implemented for this monitor")
 
     fun jankyFramesDetected(): Boolean = frameStats?.frameCount ?: 0 > 0 && numJankyFrames > 0
 

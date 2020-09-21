@@ -3,6 +3,9 @@ system_app_anr com.google.android.googlequicksearchbox:search 151164399
 system_app_anr com.google.oslo/.service.OsloService 159025912
 system_app_anr com.google.android.as/com.google.android.apps.miphone.aiai.common.superpacks.impl.AiAiSuperpacksService 159058706
 system_app_anr act=android.telephony.action.CARRIER_CONFIG_CHANGED 159921750
+system_app_anr com.google.android.apps.wellbeing*.*ContextManagerRestartBroadcastReceiver_Receiver[\s\S]*cf_x86_phone 166183732
+system_app_anr cmp=com.android.phone/.vvm.VvmSimStateTracker 159921750
+system_app_anr com.google.android.apps.dreamliner/.dnd.DockConditionProviderService 166174264
 system_app_crash -1\|android\|26\|null\|1000 155073214
 system_app_crash -1\|android\|32\|null\|1000 155073214
 system_app_crash android.database.sqlite.SQLiteCantOpenDatabaseException: 150248286
@@ -16,11 +19,17 @@ system_app_crash android.database.sqlite.SQLiteCloseable.acquireReference 159658
 system_app_crash com.google.android.gms.backup.component.D2dTransportService 31428310
 system_app_crash Unable\sto\sinstantiate\sapplication\sorg.chromium.chrome.browser.ChromeApplication 161275381
 system_app_crash com.google.android.as.*\s.*\s.*\s.*\s*.*act=android.net.wifi.STATE_CHANGE 161559360
+system_app_crash com.google.android.gms.persistent[\s\S]*cf_x86_phone[\s\S]*android.database.sqlite.SQLiteConnection.execute\(SQLiteConnection.java:707\) 160157377
 system_app_native_crash com.google.android.providers.media.module 154416156
 system_app_native_crash HwBinder*.*com.android.bluetooth 155074413
 system_app_native_crash ReferenceQueueD*.*com.google.android.apps.safetyhub 162103095
 system_app_native_crash Binder*.*com.google.android.apps.safetyhub 162104694
+system_app_native_crash Lite\sThread*.*com.google.android.apps.safetyhub 162379378
+system_app_native_crash BG\sThread*.*com.google.android.apps.safetyhub 162381002
 system_server_crash void.com.android.server.location.gnss.GnssBatchingProvider.enable 159504970
 SYSTEM_TOMBSTONE android.hardware.vibrator-service.drv2624 151884322
 SYSTEM_TOMBSTONE /vendor/bin/hw/android.hardware.gnss@1.0-service-qti 129282808
 SYSTEM_TOMBSTONE /system/product/priv-app/SafetyHubLprPrebuilt/SafetyHubLprPrebuilt.apk 158504050
+SYSTEM_TOMBSTONE Binder*.*com.google.android.apps.safetyhub 162104694
+SYSTEM_TOMBSTONE Lite\sThread*.*com.google.android.apps.safetyhub 162379378
+SYSTEM_TOMBSTONE BG\sThread*.*com.google.android.apps.safetyhub 162381002
