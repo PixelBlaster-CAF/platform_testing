@@ -6,6 +6,7 @@ system_app_anr act=android.telephony.action.CARRIER_CONFIG_CHANGED 159921750
 system_app_anr com.google.android.apps.wellbeing*.*ContextManagerRestartBroadcastReceiver_Receiver[\s\S]*cf_x86_phone 166183732
 system_app_anr cmp=com.android.phone/.vvm.VvmSimStateTracker 159921750
 system_app_anr com.google.android.apps.dreamliner/.dnd.DockConditionProviderService 166174264
+system_app_anr com.google.android.apps.wellbeing*.*ContextManagerRestartBroadcastReceiver_Receiver[\s\S]*cf_x86_64_phone 166183732
 system_app_crash -1\|android\|26\|null\|1000 155073214
 system_app_crash -1\|android\|32\|null\|1000 155073214
 system_app_crash android.database.sqlite.SQLiteCantOpenDatabaseException: 150248286
@@ -31,5 +32,7 @@ SYSTEM_TOMBSTONE android.hardware.vibrator-service.drv2624 151884322
 SYSTEM_TOMBSTONE /vendor/bin/hw/android.hardware.gnss@1.0-service-qti 129282808
 SYSTEM_TOMBSTONE /system/product/priv-app/SafetyHubLprPrebuilt/SafetyHubLprPrebuilt.apk 158504050
 SYSTEM_TOMBSTONE Binder*.*com.google.android.apps.safetyhub 162104694
+SYSTEM_TOMBSTONE ReferenceQueueD*.*com.google.android.apps.safetyhub 162103095
 SYSTEM_TOMBSTONE Lite\sThread*.*com.google.android.apps.safetyhub 162379378
 SYSTEM_TOMBSTONE BG\sThread*.*com.google.android.apps.safetyhub 162381002
+SYSTEM_TOMBSTONE android.hardwar*.*/vendor/bin/hw/android.hardware.sensors@2.0-service 163430194

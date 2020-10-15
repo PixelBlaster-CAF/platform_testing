@@ -21,6 +21,8 @@ java_library {
         "app-helpers-handheld-interfaces",
         "guava",
         "memory-helper",
+        "package-helper",
+        "launcher-aosp-tapl",
     ],
     srcs: ["src/**/*.java"],
 }
