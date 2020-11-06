@@ -19,6 +19,8 @@ package android.device.stressmodes;
 import android.app.ActivityManager;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.os.Bundle;
+import android.os.IBinder;
 import android.os.SystemClock;
 import android.util.Log;
 import android.view.WindowManager;
@@ -30,16 +32,17 @@ import org.junit.runner.Description;
 
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
-import java.util.function.IntConsumer;
+import java.util.function.BiConsumer;
 
 // TODO(b/169588447): Consider converting to @Rule
 public class LockContentionStressMode extends InstrumentationRunListener {
     private static final String TAG = LockContentionStressMode.class.getSimpleName();
-    private static final int PAUSE_BETWEEN_ATTEMPTS_MS = 5;
-    private static final double PROBABILITY_OF_HOLDING_LOCK = 0.5;
-    private static final int MAX_HOLDING_LOCK_TIME = 100;
+    private int mPauseBetweenAttemptsMs;
+    private double mProbabilityOfHoldingLock;
+    private int mMaxHoldingLockTimeMs;
     private final CyclicBarrier mEnterStress = new CyclicBarrier(4);
     private final CyclicBarrier mLeaveStress = new CyclicBarrier(4);
+    private IBinder mHoldLockToken;
 
     public LockContentionStressMode() {
         final Context context = InstrumentationRegistry.getInstrumentation().getContext();
@@ -54,7 +57,8 @@ public class LockContentionStressMode extends InstrumentationRunListener {
         createLockContentionThread("Contention-AM", am::holdLock);
     }
 
-    private void createLockContentionThread(String threadName, IntConsumer holdLockMethod) {
+    private void createLockContentionThread(
+            String threadName, BiConsumer<IBinder, Integer> holdLockMethod) {
         new Thread(
                         () -> {
                             while (true) {
@@ -66,20 +70,17 @@ public class LockContentionStressMode extends InstrumentationRunListener {
     }
 
     // Creates a lock contention for a single invocation of the test.
-    private void lockContentionUntilToldToLeave(IntConsumer holdLockMethod) {
+    private void lockContentionUntilToldToLeave(BiConsumer<IBinder, Integer> holdLockMethod) {
         try {
             // Sync with the main thread before entering stress mode.
             mEnterStress.await();
 
             // While the main thread doesn't indicate that it wants to leave the stress mode...
             while (mLeaveStress.getNumberWaiting() == 0) {
-                SystemClock.sleep(PAUSE_BETWEEN_ATTEMPTS_MS);
-                if (Math.random() < PROBABILITY_OF_HOLDING_LOCK) {
-                    try {
-                        holdLockMethod.accept((int) (Math.random() * MAX_HOLDING_LOCK_TIME));
-                    } catch (SecurityException e) {
-                        Log.i(TAG, "holdLock failed", e);
-                    }
+                SystemClock.sleep(mPauseBetweenAttemptsMs);
+                if (Math.random() < mProbabilityOfHoldingLock) {
+                    holdLockMethod.accept(
+                            mHoldLockToken, (int) (Math.random() * mMaxHoldingLockTimeMs));
                 }
             }
 
@@ -91,9 +92,36 @@ public class LockContentionStressMode extends InstrumentationRunListener {
     }
 
     @Override
+    public void testRunStarted(Description description) throws Exception {
+        super.testRunStarted(description);
+        final Bundle args = InstrumentationRegistry.getArguments();
+        final String intensity = args.getString("lock-stress-intensity", "P50");
+        Log.e(TAG, "lock-stress-intensity: " + intensity);
+        switch (intensity) {
+            case "P50":
+                mPauseBetweenAttemptsMs = 5;
+                mProbabilityOfHoldingLock = 0.5;
+                mMaxHoldingLockTimeMs = 100;
+                break;
+            case "P95":
+                mPauseBetweenAttemptsMs = 0;
+                mProbabilityOfHoldingLock = 1;
+                mMaxHoldingLockTimeMs = 100;
+                break;
+            default:
+                throw new IllegalArgumentException(
+                        "lock-stress-intensity: incorrect value: " + intensity);
+        }
+    }
+
+    @Override
     public final void testStarted(Description description) throws Exception {
         Log.d(TAG, "LockContentionStressMode.testStarted: entering lock contention mode");
+
         getInstrumentation().getUiAutomation().adoptShellPermissionIdentity();
+        mHoldLockToken = getInstrumentation().getContext().getPackageManager().getHoldLockToken();
+        getInstrumentation().getUiAutomation().dropShellPermissionIdentity();
+
         mEnterStress.await(); // Sync with stress threads before entering stress mode.
         super.testStarted(description);
     }
@@ -101,7 +129,7 @@ public class LockContentionStressMode extends InstrumentationRunListener {
     @Override
     public final void testFinished(Description description) throws Exception {
         mLeaveStress.await(); // Sync with stress threads before leaving stress mode.
-        getInstrumentation().getUiAutomation().dropShellPermissionIdentity();
+        mHoldLockToken = null;
         super.testFinished(description);
         Log.d(TAG, "LockContentionStressMode.testFinished: leaving lock contention mode");
     }

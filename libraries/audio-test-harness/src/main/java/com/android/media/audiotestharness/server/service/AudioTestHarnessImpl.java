@@ -13,12 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.media.audiotestharness.service;
+package com.android.media.audiotestharness.server.service;
 
 import com.android.media.audiotestharness.proto.AudioTestHarnessGrpc;
 import com.android.media.audiotestharness.proto.AudioTestHarnessService;
 
+import com.google.inject.Inject;
+
 import io.grpc.stub.StreamObserver;
+
+import java.util.logging.Logger;
 
 /**
  * {@inheritDoc}
@@ -28,11 +32,10 @@ import io.grpc.stub.StreamObserver;
  */
 public final class AudioTestHarnessImpl extends AudioTestHarnessGrpc.AudioTestHarnessImplBase {
 
-    private AudioTestHarnessImpl() {}
+    private static final Logger LOGGER = Logger.getLogger(AudioTestHarnessImpl.class.getName());
 
-    public static AudioTestHarnessImpl create() {
-        return new AudioTestHarnessImpl();
-    }
+    @Inject
+    public AudioTestHarnessImpl() {}
 
     @Override
     public void capture(

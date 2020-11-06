@@ -68,7 +68,7 @@ class LayersTraceSubject private constructor(
      * [name] and [frameNumber].
      */
     fun layer(name: String, frameNumber: Long): LayerSubject {
-        val layer = actual().entries.asSequence()
+        val layer = trace.entries.asSequence()
                 .flatMap { it.flattenedLayers }
                 .firstOrNull {
                     it.name.contains(name) && it.proto.currFrame == frameNumber
@@ -109,6 +109,18 @@ class LayersTraceSubject private constructor(
     fun coversAtMostRegion(region: android.graphics.Region, layerName: String = "") = apply {
         addAssertion("coversAtMostRegion($region, $layerName") {
             it.coversAtMostRegion(region, layerName)
+        }
+    }
+
+    /** Checks that all visible layers are shown for more than one consecutive entry */
+    fun visibleLayersShownMoreThanOneConsecutiveEntry() = apply {
+        addAssertion("visibleLayersShownMoreThanOneConsecutiveEntry") {
+            val visibleLayers = trace.entries.withIndex()
+                    .flatMap { (index, layerEntry) -> layerEntry.visibleLayers
+                            .map { Triple(it.name, index, layerEntry) }
+                    }
+            visibleEntriesShownMoreThanOneConsecutiveTime(visibleLayers,
+                    "visibleLayersShownMoreThanOneConsecutiveEntry")
         }
     }
 
