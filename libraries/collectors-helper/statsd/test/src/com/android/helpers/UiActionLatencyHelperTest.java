@@ -18,6 +18,7 @@ package com.android.helpers;
 import static org.junit.Assert.assertTrue;
 
 import android.os.SystemClock;
+import android.util.Log;
 
 import androidx.test.runner.AndroidJUnit4;
 
@@ -25,6 +26,7 @@ import com.android.launcher3.tapl.AllApps;
 import com.android.launcher3.tapl.LauncherInstrumentation;
 
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -39,6 +41,8 @@ import java.util.Map;
  */
 @RunWith(AndroidJUnit4.class)
 public class UiActionLatencyHelperTest {
+    private static final String LOG_TAG = UiActionLatencyHelperTest.class.getSimpleName();
+
     // Keycode for pressing the home button.
     private static final String KEYCODE_HOME = "KEYCODE_HOME";
 
@@ -65,20 +69,28 @@ public class UiActionLatencyHelperTest {
         assertTrue(mActionLatencyHelper.stopCollecting());
     }
 
-    /** Test that shade quick switch metric is collected. */
+    /** Test that shade quick switch metric is collected. Enable after b/173623876 is fixed */
     @Test
+    @Ignore
     public void testQuickSwitchMetric() throws Exception {
         final LauncherInstrumentation sLauncher = new LauncherInstrumentation();
+
+        // Lock the orientation.
+        HelperTestUtility.setOrientationNatural();
 
         startApp(sLauncher, "Chrome", "com.android.chrome");
         startApp(sLauncher, "Calculator", "com.google.android.calculator");
 
         assertTrue(mActionLatencyHelper.startCollecting());
+        Log.d(LOG_TAG, "testQuickSwitchMetric: started collecting");
 
         sLauncher.getBackground().quickSwitchToPreviousApp();
 
         // Checking metrics produced by the CUJ.
         final Map<String, StringBuilder> latencyMetrics = mActionLatencyHelper.getMetrics();
+        Log.d(
+                LOG_TAG,
+                "testQuickSwitchMetric: got metrics: " + String.join(",", latencyMetrics.keySet()));
         assertTrue(
                 "No metric latency_ACTION_TOGGLE_RECENTS",
                 latencyMetrics.containsKey("latency_ACTION_TOGGLE_RECENTS"));
@@ -86,6 +98,10 @@ public class UiActionLatencyHelperTest {
         assertTrue(mActionLatencyHelper.stopCollecting());
         HelperTestUtility.sendKeyCode(KEYCODE_HOME);
         SystemClock.sleep(HelperTestUtility.ACTION_DELAY);
+
+        // Unlock the orientation
+        HelperTestUtility.unfreezeRotation();
+
     }
 
     private void startApp(LauncherInstrumentation sLauncher, String appName, String appPackage) {
