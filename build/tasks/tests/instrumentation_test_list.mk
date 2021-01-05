@@ -40,6 +40,7 @@ instrumentation_tests := \
     SystemUITests \
     TestablesTests \
     FrameworksWifiApiTests \
+    FrameworksWifiNonUpdatableApiTests \
     FrameworksWifiTests \
     FrameworksTelephonyTests \
     ContactsProviderTests \
@@ -79,7 +80,8 @@ instrumentation_tests := \
     WMShellFlickerTestApp \
     WMShellUnitTests \
     trace_config_detailed.textproto \
-    perfetto_trace_processor_shell
+    perfetto_trace_processor_shell \
+    CarDeveloperOptionsUnitTests
 
 ifneq ($(strip $(BOARD_PERFSETUP_SCRIPT)),)
 instrumentation_tests += perf-setup
