@@ -3,23 +3,7 @@
   "presubmit": [
     {
       "name": "audiotestharness-serverlib-tests",
-      "host": true,
-      "options": [
-
-        // Exclude tests that fail on TreeHugger.
-        {
-          "exclude-filter": "com.android.media.audiotestharness.server.AudioTestHarnessGrpcServerTests#close_shutsDownGrpcServerAsExpected"
-        },
-        {
-          "exclude-filter": "com.android.media.audiotestharness.server.AudioTestHarnessGrpcServerTests#open_buildsAndStartsGrpcServerAsExpected"
-        },
-        {
-          "exclude-filter": "com.android.media.audiotestharness.server.AudioTestHarnessGrpcServerTests#open_throwsIOException_forPortTaken"
-        },
-        {
-          "exclude-filter": "com.android.media.audiotestharness.server.AudioTestHarnessGrpcServerTests#open_throwsIOExceptionForMissingServiceDependency"
-        }
-      ]
+      "host": true
     },
     {
       "name": "audiotestharness-javasoundlib-tests",
@@ -31,6 +15,10 @@
     },
     {
       "name": "audiotestharness-utilitylib-tests",
+      "host": true
+    },
+    {
+      "name": "audiotestharness-client-grpclib-tests",
       "host": true
     }
   ]

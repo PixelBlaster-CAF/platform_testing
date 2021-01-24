@@ -39,6 +39,7 @@ import org.junit.Assert
 import org.junit.Assert.assertNotNull
 
 const val FIND_TIMEOUT: Long = 10000
+const val FAST_WAIT_TIMEOUT: Long = 0
 private const val IME_PACKAGE = "com.google.android.inputmethod.latin"
 private const val SYSTEMUI_PACKAGE = "com.android.systemui"
 private val LONG_PRESS_TIMEOUT = ViewConfiguration.getLongPressTimeout() * 2L
@@ -51,14 +52,14 @@ private const val TAG = "FLICKER"
  * transitions.
  */
 fun setFastWait() {
-    Configurator.getInstance().waitForIdleTimeout = 0
+    Configurator.getInstance().waitForIdleTimeout = FAST_WAIT_TIMEOUT
 }
 
 /**
  * Reverts [android.app.UiAutomation.waitForIdle] to default behavior.
  */
 fun setDefaultWait() {
-    Configurator.getInstance().waitForIdleTimeout = 10000
+    Configurator.getInstance().waitForIdleTimeout = FIND_TIMEOUT
 }
 
 /**
@@ -163,15 +164,25 @@ fun UiDevice.waitForIME(): Boolean {
     return ime != null
 }
 
-/**
- * Opens quick step and puts the first app from the list of recently used apps into
- * split-screen
- *
- * @throws AssertionError when unable to open the list of recently used apps, or when it does
- * not contain a button to enter split screen mode
- */
-fun UiDevice.launchSplitScreen() {
-    if (this.isQuickstepEnabled()) { // Quickstep enabled
+private fun openQuickStepAndLongPressOverviewIcon(device: UiDevice) {
+    if (device.isQuickstepEnabled()) {
+        device.openQuickstep()
+    } else {
+        try {
+            device.pressRecentApps()
+        } catch (e: RemoteException) {
+            Log.e(TAG, "launchSplitScreen", e)
+        }
+    }
+    val overviewIconSelector = By.res(device.launcherPackageName, "icon")
+        .clazz(View::class.java)
+    val overviewIcon = device.wait(Until.findObject(overviewIconSelector), FIND_TIMEOUT)
+    assertNotNull("Unable to find app icon in Overview", overviewIcon)
+    overviewIcon.click()
+}
+
+fun UiDevice.openQuickStepAndClearRecentAppsFromOverview() {
+    if (this.isQuickstepEnabled()) {
         this.openQuickstep()
     } else {
         try {
@@ -180,12 +191,32 @@ fun UiDevice.launchSplitScreen() {
             Log.e(TAG, "launchSplitScreen", e)
         }
     }
-    val overviewIconSelector = By.res(this.launcherPackageName, "icon")
-            .clazz(View::class.java)
-    val overviewIcon = this.wait(Until.findObject(overviewIconSelector), FIND_TIMEOUT)
-    assertNotNull("Unable to find app icon in Overview", overviewIcon)
-    overviewIcon.click()
+    for (i in 0..9) {
+        this.swipe(
+                this.getDisplayWidth() / 2,
+                this.getDisplayHeight() / 2,
+                this.getDisplayWidth(),
+                this.getDisplayHeight() / 2,
+                5)
+        // If "Clear all"  button appears, use it
+        val clearAllSelector = By.res(this.getLauncherPackageName(), "clear_all")
+        val clearAllButton = this.wait(Until.findObject(clearAllSelector), FAST_WAIT_TIMEOUT)
+        if (clearAllButton != null) {
+            clearAllButton.click()
+        }
+    }
+    this.pressHome()
+}
 
+/**
+ * Opens quick step and puts the first app from the list of recently used apps into
+ * split-screen
+ *
+ * @throws AssertionError when unable to open the list of recently used apps, or when it does
+ * not contain a button to enter split screen mode
+ */
+fun UiDevice.launchSplitScreen() {
+    openQuickStepAndLongPressOverviewIcon(this)
     val splitScreenButtonSelector = By.text("Split screen")
     val splitScreenButton =
             this.wait(Until.findObject(splitScreenButtonSelector), FIND_TIMEOUT)
@@ -200,10 +231,26 @@ fun UiDevice.launchSplitScreen() {
 }
 
 /**
+ * Checks if the recent application is able to split screen(resizeable)
+ */
+fun UiDevice.canSplitScreen(): Boolean {
+    openQuickStepAndLongPressOverviewIcon(this)
+    val splitScreenButtonSelector = By.text("Split screen")
+    val canSplitScreen =
+            this.wait(Until.findObject(splitScreenButtonSelector), FIND_TIMEOUT) != null
+    this.pressHome()
+    return canSplitScreen
+}
+
+/**
  * Checks if the device is in split screen by searching for the split screen divider
  */
 fun UiDevice.isInSplitScreen(): Boolean {
     return this.wait(Until.findObject(splitScreenDividerSelector), FIND_TIMEOUT) != null
+}
+
+fun UiDevice.waitSplitScreenGone(): Boolean {
+    return this.wait(Until.gone(splitScreenDividerSelector), FIND_TIMEOUT) != null
 }
 
 private val splitScreenDividerSelector: BySelector
@@ -228,6 +275,28 @@ fun UiDevice.exitSplitScreen() {
     divider.drag(dstPoint, 400)
     // Wait for animation to complete.
     SystemClock.sleep(2000)
+}
+
+/**
+ * Drags the split screen divider to the bottom of the screen to close it
+ *
+ * @throws AssertionError when unable to find the split screen divider
+ */
+fun UiDevice.exitSplitScreenFromBottom() {
+    // Quickstep enabled
+    val divider = this.wait(Until.findObject(splitScreenDividerSelector), FIND_TIMEOUT)
+    assertNotNull("Unable to find Split screen divider", divider)
+
+    // Drag the split screen divider to the bottom of the screen
+    val dstPoint = if (this.isRotated()) {
+        Point(this.displayWidth, this.displayWidth / 2)
+    } else {
+        Point(this.displayWidth / 2, this.displayHeight)
+    }
+    divider.drag(dstPoint, 400)
+    if (!this.waitSplitScreenGone()) {
+        Assert.fail("Split screen divider never disappeared")
+    }
 }
 
 /**

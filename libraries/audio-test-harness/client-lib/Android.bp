@@ -14,22 +14,10 @@
  * limitations under the License.
  */
 
-java_library {
-    name: "audiotestharness-client-corelib",
-    host_supported: true,
-    srcs: [
-        "src/main/java/com/android/media/audiotestharness/client/core/*.java",
-        ":audiotestharness-commonproto",
-    ],
-    static_libs: [
-        "audiotestharness-commonlib-lite",
-        "libprotobuf-java-lite",
-    ],
-    proto: {
-        type: "lite",
-    },
-    sdk_version: "current",
-}
+// Targets for the Audio Test Harness Client Libraries.
+// Clients can be used host or device side to communicate with an Audio
+// Test Harness Server.
+// LIBRARIES ==============================================================
 
 java_library {
     name: "audiotestharness-client-clientlib",
@@ -38,4 +26,55 @@ java_library {
         "src/main/java/com/android/media/audiotestharness/client/*.java",
     ],
     sdk_version: "current",
+}
+
+java_library {
+    name: "audiotestharness-client-corelib",
+    host_supported: true,
+    srcs: [
+        "src/main/java/com/android/media/audiotestharness/client/core/*.java",
+    ],
+    static_libs: [
+        "audiotestharness-commonlib-lite",
+        "audiotestharness-commonprotolib-lite",
+    ],
+    sdk_version: "current",
+}
+
+java_library {
+    name: "audiotestharness-client-grpclib",
+    host_supported: true,
+    srcs: [
+        "src/main/java/com/android/media/audiotestharness/client/grpc/*.java",
+    ],
+    static_libs: [
+        "audiotestharness-client-corelib",
+        "grpc-java-okhttp-client-lite",
+        "audiotestharness-servicegrpclib-lite",
+        "guava",
+    ],
+    sdk_version: "current",
+}
+
+// TESTS ==============================================================
+
+java_test {
+    name: "audiotestharness-client-grpclib-tests",
+    test_suites: ["general-tests"],
+    host_supported: true,
+    srcs: [
+        "src/test/java/com/android/media/audiotestharness/client/grpc/*.java",
+    ],
+    static_libs: [
+        "audiotestharness-client-grpclib",
+        "grpc-java-core-inprocess",
+        "junit",
+        "junit-params",
+        "mockito",
+        "objenesis",
+    ],
+    sdk_version: "current",
+    test_options: {
+        unit_test: true,
+    },
 }
