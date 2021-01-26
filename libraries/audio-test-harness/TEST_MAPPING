@@ -20,6 +20,10 @@
     {
       "name": "audiotestharness-client-grpclib-tests",
       "host": true
+    },
+    {
+      "name": "audiotestharness-testlib-tests",
+      "host": true
     }
   ]
 }
