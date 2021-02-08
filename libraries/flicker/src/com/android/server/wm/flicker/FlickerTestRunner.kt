@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 The Android Open Source Project
+ * Copyright (C) 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,8 +16,10 @@
 
 package com.android.server.wm.flicker
 
+import android.platform.test.annotations.Presubmit
 import androidx.test.filters.FlakyTest
-import com.google.common.truth.Truth
+import com.android.server.wm.flicker.assertions.AssertionBlock
+import org.junit.Assume
 import org.junit.Rule
 import org.junit.Test
 
@@ -29,25 +31,34 @@ import org.junit.Test
  *
  * All the enabled assertions are created in a single test and all flaky assertions are created on
  * a second test annotated with @FlakyTest
+ *
+ * @param testSpec Flicker test specification
  */
-abstract class FlickerTestRunner(testName: String, private val flickerSpec: Flicker) {
+abstract class FlickerTestRunner(protected val testSpec: FlickerTestRunnerFactory.TestSpec) {
     @get:Rule
-    val flickerTestRule = FlickerTestRule(flickerSpec)
+    val flickerTestRule = FlickerTestRule(testSpec)
 
-    /**
-     * Tests if the transition executed successfully
-     */
-    @Test
-    fun checkTransition() {
-        Truth.assertWithMessage(flickerSpec.error?.message).that(flickerSpec.error).isNull()
+    private fun checkRequirements(@AssertionBlock block: Int) {
+        if (testSpec.assertionName.isNotEmpty()) {
+            val firstBlock = flickerTestRule.flicker.assertions.first().block
+            Assume.assumeTrue(firstBlock == block)
+        }
     }
 
     /**
      * Run only the enabled assertions on the recorded traces.
      */
+    @Presubmit
     @Test
-    fun checkAssertions() {
-        flickerSpec.checkAssertions(includeFlakyAssertions = false)
+    fun test() {
+        checkRequirements(AssertionBlock.PRESUBMIT)
+        flickerTestRule.flicker.checkAssertions(testSpec.assertionName, AssertionBlock.PRESUBMIT)
+    }
+
+    @Test
+    fun testPostSubmit() {
+        checkRequirements(AssertionBlock.POSTSUBMIT)
+        flickerTestRule.flicker.checkAssertions(testSpec.assertionName, AssertionBlock.POSTSUBMIT)
     }
 
     /**
@@ -55,7 +66,8 @@ abstract class FlickerTestRunner(testName: String, private val flickerSpec: Flic
      */
     @FlakyTest
     @Test
-    fun checkFlakyAssertions() {
-        flickerSpec.checkAssertions(includeFlakyAssertions = true)
+    fun testFlaky() {
+        checkRequirements(AssertionBlock.FLAKY)
+        flickerTestRule.flicker.checkAssertions(testSpec.assertionName, AssertionBlock.FLAKY)
     }
 }

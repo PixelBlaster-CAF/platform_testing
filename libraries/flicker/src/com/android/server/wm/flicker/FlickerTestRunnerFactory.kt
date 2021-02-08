@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 The Android Open Source Project
+ * Copyright (C) 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,9 @@ import android.app.Instrumentation
 import android.os.Bundle
 import android.support.test.launcherhelper.ILauncherStrategy
 import android.support.test.launcherhelper.LauncherStrategyFactory
+import android.util.Log
 import android.view.Surface
+import androidx.annotation.VisibleForTesting
 import com.android.server.wm.flicker.dsl.FlickerBuilder
 
 /**
@@ -28,13 +30,9 @@ import com.android.server.wm.flicker.dsl.FlickerBuilder
  *
  * This class recreates behavior from JUnit5 TestFactory that is not available on JUnit4
  */
-class FlickerTestRunnerFactory @JvmOverloads constructor(
-    private val instrumentation: Instrumentation,
-    private val supportedRotations: List<Int> = listOf(Surface.ROTATION_0, Surface.ROTATION_90),
-    private val repetitions: Int = 1,
-    private val launcherStrategy: ILauncherStrategy = LauncherStrategyFactory
-        .getInstance(instrumentation).launcherStrategy
-) {
+open class FlickerTestRunnerFactory {
+    protected val cachedTests = mutableMapOf<String, Flicker>()
+
     /**
      * Creates multiple instances of the same test, running on different device orientations
      *
@@ -45,16 +43,48 @@ class FlickerTestRunnerFactory @JvmOverloads constructor(
      *      assertions
      */
     @JvmOverloads
-    fun buildTest(
-        deviceConfigurations: List<Bundle> = getConfigNonRotationTests(),
+    open fun buildTest(
+        instrumentation: Instrumentation,
+        launcherStrategy: ILauncherStrategy =
+            LauncherStrategyFactory.getInstance(instrumentation).launcherStrategy,
+        supportedRotations: List<Int> = listOf(Surface.ROTATION_0, Surface.ROTATION_90),
+        repetitions: Int = 1,
+        deviceConfigurations: List<Bundle> =
+            getConfigNonRotationTests(supportedRotations, repetitions),
         testSpecification: FlickerBuilder.(Bundle) -> Any
     ): List<Array<Any>> {
-        return deviceConfigurations.map {
+        return deviceConfigurations.flatMap {
             val builder = FlickerBuilder(instrumentation, launcherStrategy)
-            val flickerTests = builder.apply { testSpecification(it) }.build()
+            val flickerTests = buildIndividualTests(builder.apply { testSpecification(it) })
 
             flickerTests
-        }.map { arrayOf(it.toString(), it) }
+        }.map { arrayOf(it as Any) }
+    }
+
+    /**
+     * Creates multiple instances of the same test, running on different configuration
+     *
+     * @param testSpecification Segments of the test specification, if any
+     */
+    @JvmOverloads
+    open fun buildTest(
+        instrumentation: Instrumentation,
+        vararg testSpecification: FlickerBuilder.(Bundle) -> Any,
+        launcherStrategy: ILauncherStrategy =
+            LauncherStrategyFactory.getInstance(instrumentation).launcherStrategy,
+        supportedRotations: List<Int> = listOf(Surface.ROTATION_0, Surface.ROTATION_90),
+        repetitions: Int = 1,
+        deviceConfigurations: List<Bundle> =
+            getConfigNonRotationTests(supportedRotations, repetitions)
+    ): List<Array<Any>> {
+        val newTestSpecification: FlickerBuilder.(Bundle) -> Any = { configuration ->
+            testSpecification.forEach {
+                this.apply { it(configuration) }
+            }
+        }
+
+        return buildTest(instrumentation, launcherStrategy, supportedRotations, repetitions,
+            deviceConfigurations) { newTestSpecification(it) }
     }
 
     /**
@@ -66,18 +96,78 @@ class FlickerTestRunnerFactory @JvmOverloads constructor(
      *
      * @param testSpecification Test specification, e.g., setup, teardown, transitions and
      *      assertions
-    */
+     */
     @JvmOverloads
-    fun buildRotationTest(
-        deviceConfigurations: List<Bundle> = getConfigRotationTests(),
+    open fun buildRotationTest(
+        instrumentation: Instrumentation,
+        launcherStrategy: ILauncherStrategy =
+            LauncherStrategyFactory.getInstance(instrumentation).launcherStrategy,
+        supportedRotations: List<Int> = listOf(Surface.ROTATION_0, Surface.ROTATION_90),
+        repetitions: Int = 1,
+        deviceConfigurations: List<Bundle> =
+            getConfigRotationTests(supportedRotations, repetitions),
         testSpecification: FlickerBuilder.(Bundle) -> Any
     ): List<Array<Any>> {
-        return deviceConfigurations.map {
+        return deviceConfigurations.flatMap {
             val builder = FlickerBuilder(instrumentation, launcherStrategy)
-            val flickerTests = builder.apply { testSpecification(it) }.build()
+            buildIndividualTests(builder.apply { testSpecification(it) })
+        }.map { arrayOf(it as Any) }
+    }
 
-            flickerTests
-        }.map { arrayOf(it.toString(), it) }
+    /**
+     * Creates multiple instances of the same test, running on different configuration
+     *
+     * @param testSpecification Segments of the test specification, if any
+     */
+    @JvmOverloads
+    open fun buildRotationTest(
+        instrumentation: Instrumentation,
+        vararg testSpecification: FlickerBuilder.(Bundle) -> Any,
+        launcherStrategy: ILauncherStrategy =
+            LauncherStrategyFactory.getInstance(instrumentation).launcherStrategy,
+        supportedRotations: List<Int> = listOf(Surface.ROTATION_0, Surface.ROTATION_90),
+        repetitions: Int = 1,
+        deviceConfigurations: List<Bundle> =
+            getConfigRotationTests(supportedRotations, repetitions)
+    ): List<Array<Any>> {
+        val newTestSpecification: FlickerBuilder.(Bundle) -> Any = { configuration ->
+            testSpecification.forEach {
+                this.apply { it(configuration) }
+            }
+        }
+
+        return buildRotationTest(instrumentation, launcherStrategy, supportedRotations,
+            repetitions, deviceConfigurations) { newTestSpecification(it) }
+    }
+
+    /**
+     * Creates multiple flicker tests.
+     *
+     * Each test contains a single assertion, but all tests share the same setup, transition
+     * and results
+     */
+    protected open fun buildIndividualTests(
+        builder: FlickerBuilder
+    ): List<TestSpec> {
+        val flicker = builder.build(runner = TransitionRunnerCached())
+        require(cachedTests[flicker.testName] == null) {
+            "A test spec with name ${flicker.testName} already exists"
+        }
+        cachedTests[flicker.testName] = flicker
+        Log.v(FLICKER_TAG, "Adding ${flicker.testName} to cache. " +
+            "Current cache size: ${cachedTests.size}")
+        val assertionsList = flicker.assertions
+        val lastAssertionIdx = assertionsList.lastIndex
+
+        val result = mutableListOf(TestSpec(flicker.testName))
+        result.addAll(
+            assertionsList.map { assertion ->
+                TestSpec(flicker.testName, assertion.name)
+            }
+        )
+
+        result.add(TestSpec(flicker.testName, "CLEANUP", cleanUp = true))
+        return result
     }
 
     /**
@@ -85,18 +175,28 @@ class FlickerTestRunnerFactory @JvmOverloads constructor(
      *
      * Each configurations has a start orientation.
      */
-    fun getConfigNonRotationTests() = supportedRotations
-        .map { rotation -> Bundle().also {
-            it.putInt(START_ROTATION, rotation)
-            it.putInt(REPETITIONS, repetitions)
-        } }
+    @JvmOverloads
+    open fun getConfigNonRotationTests(
+        supportedRotations: List<Int> = listOf(Surface.ROTATION_0, Surface.ROTATION_90),
+        repetitions: Int = 1
+    ) = supportedRotations
+        .map { rotation ->
+            Bundle().also {
+                it.putInt(START_ROTATION, rotation)
+                it.putInt(REPETITIONS, repetitions)
+            }
+        }
 
     /**
      * Gets a list of test configurations.
      *
      * Each configurations has a start and end orientation.
      */
-    fun getConfigRotationTests(): List<Bundle> {
+    @JvmOverloads
+    open fun getConfigRotationTests(
+        supportedRotations: List<Int> = listOf(Surface.ROTATION_0, Surface.ROTATION_90),
+        repetitions: Int = 1
+    ): List<Bundle> {
         return supportedRotations
             .flatMap { start -> supportedRotations.map { end -> start to end } }
             .filter { (start, end) -> start != end }
@@ -107,5 +207,107 @@ class FlickerTestRunnerFactory @JvmOverloads constructor(
                     it.putInt(REPETITIONS, repetitions)
                 }
             }
+    }
+
+    /**
+     * Removes all entries from the cache.
+     *
+     * Using during self-tests of the library
+     */
+    @VisibleForTesting
+    fun removeAll() {
+        Log.v(FLICKER_TAG, "Removing all tags from cache")
+        val keys = cachedTests.keys.toSet()
+        keys.forEach { remove(it, isCleanUp = true) }
+    }
+
+    /**
+     * Fetches a test case [testSpecification] from the cache
+     *
+     * @param testSpecification Test to fetch
+     * @throws IllegalStateException if the test doesn't exist
+     */
+    open fun get(testSpecification: TestSpec): Flicker? {
+        val testName = testSpecification.testName
+        return cachedTests[testName]
+    }
+
+    /**
+     * Cleanup all tests from the cache.
+     *
+     * This is necessary because JUnit's ParameterizedRunner keeps a reference to the list of
+     * test cases until the whole test suite finishes, this prevents GC from removing executed
+     * traces
+     *
+     * @param testSpecification Test to remove
+     */
+    open fun remove(testSpecification: TestSpec) {
+        remove(testSpecification.testName, testSpecification.cleanUp)
+    }
+
+    protected open fun remove(testName: String, isCleanUp: Boolean) {
+        val flickerSpec = cachedTests.remove(testName)
+        Log.v(FLICKER_TAG, "Cleaning up $testName")
+        require(isCleanUp || flickerSpec?.testName == testName) {
+            "Unable to remove test $testName from cache"
+        }
+        flickerSpec?.clear()
+    }
+
+    /**
+     * Ensure that none of only 1 test has a result associated with it (cached)
+     *
+     * This method is used during execution to prevent tests from skipping the cleanup step,
+     * allowing GC to remove tests from memory before the test suite finishes
+     *
+     * @throws IllegalStateException if the more than 1 test have a result
+     */
+    fun assertUpToOneTestExecuted() {
+        Log.v(FLICKER_TAG, "Ensuring up to one test in the cache is executed")
+        var alreadyExecuted = ""
+        cachedTests.forEach { (testName, flicker) ->
+            if (flicker.result != null) {
+                require(alreadyExecuted.isEmpty()) {
+                    "Test ${flicker.testName} wants " +
+                        "to execute but $alreadyExecuted was not cleaned up"
+                }
+                alreadyExecuted = testName
+            }
+        }
+    }
+
+    companion object {
+        private lateinit var instance: FlickerTestRunnerFactory
+
+        @JvmStatic
+        fun getInstance(): FlickerTestRunnerFactory {
+            if (!::instance.isInitialized) {
+                instance = FlickerTestRunnerFactory()
+            }
+
+            return instance
+        }
+    }
+
+    /**
+     * Specification of a flicker test for JUnit ParameterizedRunner class
+     * @param testName Name of the test. Appears on log outputs and test dashboards
+     * @param assertionName Name of the assertion to test
+     * @param cleanUp If this test should delete the traces and screen recording files if it passes
+     */
+    data class TestSpec(
+        @JvmField val testName: String,
+        @JvmField val assertionName: String = "",
+        @JvmField val cleanUp: Boolean = false
+    ) {
+        override fun toString(): String {
+            return buildString {
+                append(testName)
+
+                if (assertionName.isNotEmpty()) {
+                    append("_$assertionName")
+                }
+            }
+        }
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 The Android Open Source Project
+ * Copyright (C) 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,20 +19,42 @@ package com.android.server.wm.flicker
 import android.os.Bundle
 import android.view.Surface
 import androidx.test.platform.app.InstrumentationRegistry
+import com.android.server.wm.flicker.dsl.FlickerBuilder
 import com.google.common.truth.Truth.assertWithMessage
 import org.junit.FixMethodOrder
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TestRule
 import org.junit.runners.MethodSorters
+import org.junit.runners.model.Statement
 
 /**
  * Contains [FlickerTestRunnerFactory] tests.
  *
- * To run this test: `atest FlickerLibTest:FlickerTestFacroty`
+ * To run this test: `atest FlickerLibTest:FlickerTestFactoryRunnerTest`
  */
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 class FlickerTestFactoryRunnerTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val defaultRotations = listOf(Surface.ROTATION_0, Surface.ROTATION_90)
+    private val testFactory = FlickerTestRunnerFactory.getInstance()
+
+    private fun FlickerBuilder.setDefaultTestCfg(cfg: Bundle) = apply {
+        withTestName { "${cfg.startRotationName}_${cfg.endRotationName}_" }
+        assertions {
+            layersTrace { all("layers") { fail("First assertion") } }
+        }
+    }
+
+    @get:Rule
+    val emptyCacheRule = TestRule { base, _ ->
+        object : Statement() {
+            override fun evaluate() {
+                testFactory.removeAll()
+                base.evaluate()
+            }
+        }
+    }
 
     private fun validateRotationTest(actual: Bundle, rotations: List<Int> = defaultRotations) {
         assertWithMessage("Rotation tests should not have the same start and end rotation")
@@ -52,40 +74,170 @@ class FlickerTestFactoryRunnerTest {
 
     @Test
     fun checkBuildTest() {
-        val factory = FlickerTestRunnerFactory(instrumentation)
-        val actual = factory.buildTest { cfg -> validateTest(cfg) }
+        val actual = testFactory.buildTest(instrumentation) { cfg ->
+            this.setDefaultTestCfg(cfg)
+            validateTest(cfg)
+        }
+        // Should have 1 test for transition, 1 for the assertion,
+        // and 1 for cleanup in each orientation
         assertWithMessage("Flicker should create tests for 0 and 90 degrees")
-            .that(actual).hasSize(2)
+            .that(actual).hasSize(6)
     }
 
     @Test
     fun checkBuildRotationTest() {
-        val factory = FlickerTestRunnerFactory(instrumentation)
-        val actual = factory.buildRotationTest { cfg -> validateRotationTest(cfg) }
+        val actual = testFactory.buildRotationTest(instrumentation) { cfg ->
+                this.setDefaultTestCfg(cfg)
+                validateRotationTest(cfg)
+            }
+        // Should have 1 test for transition, 1 for the assertion,
+        // and 1 for cleanup in each orientation
         assertWithMessage("Flicker should create tests for 0 and 90 degrees")
-            .that(actual).hasSize(2)
+            .that(actual).hasSize(6)
     }
 
     @Test
     fun checkBuildCustomRotationsTest() {
         val rotations = listOf(Surface.ROTATION_0, Surface.ROTATION_90, Surface.ROTATION_180,
                 Surface.ROTATION_270)
-        val factory = FlickerTestRunnerFactory(instrumentation, rotations)
-        val actual = factory.buildRotationTest { cfg -> validateRotationTest(cfg, rotations) }
+        val actual = testFactory.buildRotationTest(instrumentation,
+            supportedRotations = rotations) { cfg ->
+                this.setDefaultTestCfg(cfg)
+                validateRotationTest(cfg, rotations)
+            }
+        // Should have 1 test for transition and 1 for the assertions in each rotation
         assertWithMessage("Flicker should create tests for 0/90/180/270 degrees")
-            .that(actual).hasSize(12)
+            .that(actual).hasSize(36)
     }
 
     @Test
     fun checkBuildCustomPayloadTest() {
-        val factory = FlickerTestRunnerFactory(instrumentation)
         val actual = listOf(Bundle().also { it.putBoolean("test", true) })
-        val tests = factory.buildTest(actual) { cfg ->
+        val tests = testFactory.buildTest(instrumentation,
+            deviceConfigurations = actual) { cfg ->
+            this.setDefaultTestCfg(cfg)
             validateTest(cfg)
             assertWithMessage("Could not find custom payload data")
                 .that(cfg.getBoolean("test", false)).isTrue()
         }
-        assertWithMessage("Flicker should create tests for 0 and 90 degrees")
-            .that(tests).hasSize(1)
+        // Should have 1 test for transition and 1 for the assertions in each orientation
+        assertWithMessage("Flicker should create 1 test for transition, 1 for assertion, " +
+            "and 1 for cleanup")
+            .that(tests).hasSize(3)
+    }
+
+    private fun assertHasAssertion(flicker: Flicker, assertionName: String) {
+        assertWithMessage("Should have 1 assertion")
+            .that(flicker.assertions.filter { it.name == assertionName })
+            .hasSize(1)
+    }
+
+    @Test
+    fun checkBuildOneTestPerAssertion() {
+        val tests = testFactory.buildTest(instrumentation,
+            supportedRotations = listOf(Surface.ROTATION_0)) {
+            assertions {
+                layersTrace { all("layers") { fail("First assertion") } }
+                windowManagerTrace { all("wm") { fail("Second assertion") } }
+                eventLog { all("eventLog") { fail("This assertion") } }
+            }
+        }.map { it.first() as FlickerTestRunnerFactory.TestSpec }
+
+        assertWithMessage("Factory should have created 5 tests, one for transition, " +
+            "3 with a single assertion each and 1 for cleanup")
+            .that(tests)
+            .hasSize(5)
+
+        tests.forEach { testSpec ->
+            val test = testFactory.get(testSpec)
+                ?: error("Unable to find test for ${testSpec.testName}")
+            if (testSpec.assertionName.isNotEmpty() && !testSpec.cleanUp) {
+                assertHasAssertion(test, testSpec.assertionName)
+            }
+        }
+    }
+
+    @Test
+    fun mergeTestConfiguration() {
+        val base: FlickerBuilder.(Bundle) -> Any = {
+            assertions {
+                windowManagerTrace {
+                    start("wm") { it.isEmpty }
+                }
+            }
+        }
+
+        val extension: FlickerBuilder.(Bundle) -> Any = {
+            assertions {
+                windowManagerTrace {
+                    start("wm2") { it.isEmpty }
+                }
+            }
+        }
+
+        val tests = testFactory.buildTest(instrumentation,
+            base, extension, supportedRotations = listOf(Surface.ROTATION_0))
+            .map { it.first() as FlickerTestRunnerFactory.TestSpec }
+        assertWithMessage("Factory should have created 4 tests, 1 for transition and 2 " +
+            "tests with a single assertion each, and 1 for cleanup")
+                .that(tests)
+                .hasSize(4)
+
+        tests.forEach { testSpec ->
+            val test = testFactory.get(testSpec)
+                ?: error("Unable to find test for ${testSpec.testName}")
+            if (testSpec.assertionName.isNotEmpty() && !testSpec.cleanUp) {
+                assertHasAssertion(test, testSpec.assertionName)
+            }
+        }
+    }
+
+    @Test
+    fun checkCleanUp() {
+        val actual = testFactory.buildTest(instrumentation) { cfg ->
+            this.setDefaultTestCfg(cfg)
+            validateTest(cfg)
+        }.map { it.first() as FlickerTestRunnerFactory.TestSpec }
+
+        actual.forEachIndexed { index, testSpec ->
+            val expectedCleanUp = index % 3 == 2
+            assertWithMessage("Entry $index should${if (expectedCleanUp) "" else " not"} cleanup")
+                .that(testSpec.cleanUp)
+                .isEqualTo(expectedCleanUp)
+        }
+    }
+
+    @Test
+    fun checkTransitionRunner() {
+        val actual = testFactory.buildTest(instrumentation) { cfg ->
+            this.setDefaultTestCfg(cfg)
+            validateTest(cfg)
+        }.map { it.first() as FlickerTestRunnerFactory.TestSpec }
+
+        val tests = actual.map { testFactory.get(it)
+            ?: error("Unable to find test for ${it.testName}")
+        }
+
+        (1 until tests.size).forEach { index ->
+            val prevTest = tests[index - 1]
+            val currTest = tests[index]
+
+            // Only the middle should change
+            if (index != tests.size / 2) {
+                assertWithMessage("Test ${index - 1} (${prevTest.testName}) and " +
+                    "$index (${currTest.testName}) tests should  share a runner")
+                    .that(currTest.runner)
+                    .isEqualTo(prevTest.runner)
+            } else {
+                assertWithMessage("Test ${index - 1} (${prevTest.testName}) and " +
+                    "$index (${currTest.testName}) tests should not share a runner")
+                    .that(currTest.runner)
+                    .isNotEqualTo(prevTest.runner)
+            }
+        }
+
+        assertWithMessage("First and last tests should not share a runner")
+            .that(tests.first().runner)
+            .isNotEqualTo(tests.last().runner)
     }
 }
