@@ -27,6 +27,7 @@ import android.util.Rational
 import android.view.Surface
 import android.view.View
 import android.view.ViewConfiguration
+import androidx.annotation.VisibleForTesting
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.BySelector
 import androidx.test.uiautomator.Configurator
@@ -41,6 +42,7 @@ import org.junit.Assert.assertNotNull
 const val FIND_TIMEOUT: Long = 10000
 const val FAST_WAIT_TIMEOUT: Long = 0
 const val IME_PACKAGE = "com.google.android.inputmethod.latin"
+@VisibleForTesting
 const val SYSTEMUI_PACKAGE = "com.android.systemui"
 private val LONG_PRESS_TIMEOUT = ViewConfiguration.getLongPressTimeout() * 2L
 private const val TAG = "FLICKER"
@@ -154,14 +156,6 @@ private fun longPressRecents(device: UiDevice) {
     val recentsButton = device.wait(Until.findObject(recentsSelector), FIND_TIMEOUT)
     assertNotNull("Unable to find 'recent items' button", recentsButton)
     recentsButton.click(LONG_PRESS_TIMEOUT)
-}
-
-/**
- * Wait for any IME view to appear
- */
-fun UiDevice.waitForIME(): Boolean {
-    val ime = this.wait(Until.findObject(By.pkg(IME_PACKAGE)), FIND_TIMEOUT)
-    return ime != null
 }
 
 private fun openQuickStepAndLongPressOverviewIcon(device: UiDevice) {
@@ -324,13 +318,6 @@ fun UiDevice.resizeSplitScreen(windowHeightRatio: Rational) {
 }
 
 /**
- * Checks if the device has a Pip window
- */
-fun UiDevice.hasPipWindow(): Boolean {
-    return this.wait(Until.findObject(pipWindowSelector), FIND_TIMEOUT) != null
-}
-
-/**
  * Checks if the device has a window with the package name
  */
 fun UiDevice.hasWindow(packageName: String): Boolean {
@@ -342,37 +329,6 @@ fun UiDevice.hasWindow(packageName: String): Boolean {
  */
 fun UiDevice.waitUntilGone(packageName: String): Boolean {
     return this.wait(Until.gone(By.pkg(packageName)), FIND_TIMEOUT) != null
-}
-
-val pipWindowSelector: BySelector
-    get() = By.res(SYSTEMUI_PACKAGE, "background")
-
-/**
- * Closes the active Pip window by clicking on its close button
- *
- * @throws AssertionError when unable to find the Pip window
- */
-fun UiDevice.closePipWindow() {
-    val pipWindow = this.findObject(pipWindowSelector)
-    assertNotNull("PIP window not found", pipWindow)
-    pipWindow.click()
-    val exitPipObject = this.findObject(By.res(SYSTEMUI_PACKAGE, "dismiss"))
-    assertNotNull("PIP window dismiss button not found", pipWindow)
-    exitPipObject.click()
-    // Wait for animation to complete.
-    SystemClock.sleep(2000)
-}
-
-/**
- * Expands the active Pip window by double clicking it
- *
- * @throws AssertionError when unable to find the Pip window
- */
-fun UiDevice.expandPipWindow() {
-    val pipWindow = this.findObject(pipWindowSelector)
-    assertNotNull("PIP window not found", pipWindow)
-    pipWindow.click()
-    pipWindow.click()
 }
 
 fun stopPackage(context: Context, packageName: String) {

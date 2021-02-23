@@ -72,7 +72,7 @@ native_tests := \
     libprocinfo_test \
     libtextclassifier_tests \
     libsurfaceflinger_unittest \
-    libunwindstack_test \
+    libunwindstack_unit_test \
     libvintf_test \
     linker-unit-tests \
     logcat-unit-tests \
@@ -112,6 +112,7 @@ native_tests := \
     posix_async_io_test \
     prioritydumper_test \
     puffin_unittest \
+    quiche_device_test_src_lib \
     recovery_unit_test \
     resolv_gold_test \
     resolv_integration_test \
