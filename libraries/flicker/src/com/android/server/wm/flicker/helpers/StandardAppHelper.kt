@@ -28,6 +28,7 @@ import androidx.test.uiautomator.By
 import androidx.test.uiautomator.BySelector
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
+import com.android.server.wm.traces.common.windowmanager.WindowManagerState
 import com.android.server.wm.traces.parser.toActivityName
 import com.android.server.wm.traces.parser.toWindowName
 import com.android.server.wm.traces.parser.windowmanager.WindowManagerStateHelper
@@ -103,6 +104,33 @@ open class StandardAppHelper @JvmOverloads constructor(
     override fun exit() {
         // Ensure all testing components end up being closed.
         activityManager?.forceStopPackage(component.packageName)
+    }
+
+    /**
+     * Exits the activity and wait for activity destroyed
+     */
+    @JvmOverloads
+    fun exit(
+        wmHelper: WindowManagerStateHelper
+    ) {
+        exit()
+        waitForActivityDestroyed(wmHelper)
+    }
+
+    /**
+     * Waits the activity until state change to {link WindowManagerState.STATE_DESTROYED}
+     */
+    private fun waitForActivityDestroyed(
+        wmHelper: WindowManagerStateHelper
+    ) {
+        val activityName = component.toActivityName()
+        wmHelper.waitFor("state of $activityName to be ${WindowManagerState.STATE_DESTROYED}") {
+            !it.wmState.containsActivity(activityName) ||
+                it.wmState.hasActivityState(activityName, WindowManagerState.STATE_DESTROYED)
+        }
+        wmHelper.waitForAppTransitionIdle()
+        // Ensure WindowManagerService wait until all animations have completed
+        mInstrumentation.uiAutomation.syncInputTransactions()
     }
 
     private fun launchAppViaIntent(
