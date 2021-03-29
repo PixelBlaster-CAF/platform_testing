@@ -91,6 +91,7 @@ public class UiInteractionFrameInfoListener extends BaseCollectionListener<Strin
         IntentFilter filter = new IntentFilter();
         filter.addAction(InteractionJankMonitor.ACTION_SESSION_BEGIN);
         filter.addAction(InteractionJankMonitor.ACTION_METRICS_LOGGED);
+        filter.addAction(InteractionJankMonitor.ACTION_SESSION_CANCEL);
         getInstrumentation().getContext().registerReceiver(mReceiver, filter);
         return true;
     }
@@ -106,7 +107,7 @@ public class UiInteractionFrameInfoListener extends BaseCollectionListener<Strin
                 if (mMetricsReady) {
                     processMetrics(data);
                 } else {
-                    throw new AssertionError("metrics not ready until polling max times!");
+                    throw new IllegalStateException("metrics not ready until polling max times!");
                 }
             }
         } catch (InterruptedException e) {
@@ -119,6 +120,22 @@ public class UiInteractionFrameInfoListener extends BaseCollectionListener<Strin
             getInstrumentation().getContext().unregisterReceiver(mReceiver);
         }
         return true;
+    }
+
+    private void reduceMetrics(DataRecord data, String key, String value) {
+        if (data == null || key.isEmpty() || value.isEmpty()) return;
+
+        double result = 0;
+        String[] tokens = value.split(MetricUtility.METRIC_SEPARATOR);
+        for (String token : tokens) {
+            if (key.endsWith(UiInteractionFrameInfoHelper.SUFFIX_MAX_FRAME_MS)) {
+                result = Double.max(result, Double.parseDouble(token));
+            } else {
+                result += Double.parseDouble(token);
+                result = UiInteractionFrameInfoHelper.makeLogFriendly(Math.floor(result));
+            }
+        }
+        data.addStringMetric(key, Double.toString(result));
     }
 
     private void processMetrics(DataRecord data) throws InterruptedException {
@@ -134,7 +151,7 @@ public class UiInteractionFrameInfoListener extends BaseCollectionListener<Strin
             for (String key : bundle.keySet()) {
                 for (String cujName : mLoggedCujSet) {
                     if (key.startsWith(cujName)) {
-                        data.addStringMetric(key, bundle.getString(key));
+                        reduceMetrics(data, key, bundle.getString(key));
                         foundCujSet.add(cujName);
                         break;
                     }
