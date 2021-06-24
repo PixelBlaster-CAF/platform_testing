@@ -1,3 +1,4 @@
+//
 // Copyright (C) 2021 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,24 +12,23 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+//
 
 package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
 java_library {
-    name: "lyric-helper-test",
-    defaults: ["tradefed_errorprone_defaults"],
-
-    srcs: ["src/**/*.java"],
-
+    name: "automotive-home-helper",
+    libs: [
+        "ub-uiautomator",
+        "app-helpers-auto-interfaces",
+    ],
     static_libs: [
         "androidx.test.runner",
-        "junit",
-        "mockito-target",
-        "lyric-metric-helper",
-        "truth-prebuilt",
+        "android-support-annotations",
+        "automotive-standard-app-helper",
     ],
-
-    sdk_version: "current",
+    srcs: ["src/**/*.java"],
+    sdk_version: "test_current",
 }
