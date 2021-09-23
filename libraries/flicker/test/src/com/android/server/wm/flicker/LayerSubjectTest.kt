@@ -16,8 +16,9 @@
 
 package com.android.server.wm.flicker
 
+import com.android.server.wm.flicker.traces.layers.LayerSubject
 import com.android.server.wm.flicker.traces.layers.LayersTraceSubject.Companion.assertThat
-import com.android.server.wm.traces.common.Bounds
+import com.android.server.wm.traces.common.Size
 import com.google.common.truth.Truth
 import org.junit.FixMethodOrder
 import org.junit.Test
@@ -30,7 +31,7 @@ import org.junit.runners.MethodSorters
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 class LayerSubjectTest {
     @Test
-    fun exceptionContainsDebugInfo() {
+    fun exceptionContainsDebugInfoImaginary() {
         val layersTraceEntries = readLayerTraceFromFile("layers_trace_emptyregion.pb")
         val error = assertThrows(AssertionError::class.java) {
             assertThat(layersTraceEntries)
@@ -38,11 +39,33 @@ class LayerSubjectTest {
                 .layer("ImaginaryLayer", 0)
                 .exists()
         }
-        Truth.assertThat(error).hasMessageThat().contains("Trace:")
-        Truth.assertThat(error).hasMessageThat().contains("Path: ")
-        Truth.assertThat(error).hasMessageThat().contains("Entry:")
-        Truth.assertThat(error).hasMessageThat().contains("Frame:")
-        Truth.assertThat(error).hasMessageThat().contains("Layer:")
+        Truth.assertThat(error).hasMessageThat().contains("ImaginaryLayer")
+        Truth.assertThat(error).hasMessageThat().contains("What?")
+        Truth.assertThat(error).hasMessageThat().contains("Where?")
+        Truth.assertThat(error).hasMessageThat().contains("Entry")
+        Truth.assertThat(error).hasMessageThat().contains("Trace start")
+        Truth.assertThat(error).hasMessageThat().contains("Trace start")
+        Truth.assertThat(error).hasMessageThat().contains("Trace file")
+        Truth.assertThat(error).hasMessageThat().contains("Layer name")
+    }
+
+    @Test
+    fun exceptionContainsDebugInfoConcrete() {
+        val layersTraceEntries = readLayerTraceFromFile("layers_trace_emptyregion.pb")
+        val error = assertThrows(AssertionError::class.java) {
+            assertThat(layersTraceEntries)
+                    .first()
+                    .subjects
+                    .first()
+                    .doesNotExist()
+        }
+        Truth.assertThat(error).hasMessageThat().contains("What?")
+        Truth.assertThat(error).hasMessageThat().contains("Where?")
+        Truth.assertThat(error).hasMessageThat().contains("Entry")
+        Truth.assertThat(error).hasMessageThat().contains("Trace start")
+        Truth.assertThat(error).hasMessageThat().contains("Trace start")
+        Truth.assertThat(error).hasMessageThat().contains("Trace file")
+        Truth.assertThat(error).hasMessageThat().contains("Entry")
     }
 
     @Test
@@ -50,7 +73,7 @@ class LayerSubjectTest {
         val layersTraceEntries = readLayerTraceFromFile("layers_trace_emptyregion.pb")
         assertThat(layersTraceEntries)
             .layer("SoundVizWallpaperV2", 26033)
-            .hasBufferSize(Bounds(1440, 2960))
+            .hasBufferSize(Size(1440, 2960))
             .hasScalingMode(0)
 
         assertThat(layersTraceEntries)

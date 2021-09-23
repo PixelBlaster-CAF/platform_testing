@@ -14,13 +14,16 @@
  * limitations under the License.
  */
 
-package com.android.server.wm.flicker.traces.layers
+package com.android.server.wm.flicker.service
 
-import com.android.server.wm.traces.common.layers.LayerTraceEntry
-import com.android.server.wm.traces.parser.toAndroidRegion
+import com.android.server.wm.traces.common.layers.LayersTrace
+import com.android.server.wm.traces.common.windowmanager.WindowManagerTrace
 
-fun LayerTraceEntry.getVisibleBounds(layerName: String): android.graphics.Region {
-    return flattenedLayers.firstOrNull { it.name.contains(layerName) && it.isVisible }
-        ?.visibleRegion?.toAndroidRegion()
-        ?: android.graphics.Region()
+/**
+ * Synchronizes traces and invoke all concrete tag producers.
+ */
+class TaggingEngine {
+    fun tag(wmTrace: WindowManagerTrace, sfTrace: LayersTrace) {
+        // TODO: Synchronize traces and invoke all concrete tag producers
+    }
 }

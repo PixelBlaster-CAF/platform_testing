@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 The Android Open Source Project
+ * Copyright (C) 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,10 +23,10 @@ import static org.junit.Assert.fail;
 
 import com.android.media.audiotestharness.proto.AudioTestHarnessGrpc;
 import com.android.media.audiotestharness.proto.AudioTestHarnessService;
+import com.android.media.audiotestharness.server.config.SharedHostConfiguration;
 import com.android.media.audiotestharness.server.utility.PortUtility;
 
-import com.google.inject.Guice;
-import com.google.inject.Injector;
+import com.google.inject.AbstractModule;
 
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -42,35 +42,76 @@ import java.util.Iterator;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/** Tests for the {@link AudioTestHarnessGrpcServer} class. */
+/** Tests for the {@link AudioTestHarnessGrpcServer} class and its factory. */
 @RunWith(JUnit4.class)
 public class AudioTestHarnessGrpcServerTests {
 
-    /**
-     * Tests for the {@link AudioTestHarnessGrpcServer#create(int, ExecutorService, Injector)},
-     * {@link AudioTestHarnessGrpcServer#createOnPort(int)}, and {@link
-     * AudioTestHarnessGrpcServer#createWithDefault()} methods.
-     */
+    /** Tests for the {@link AudioTestHarnessGrpcServerFactory} methods. */
     @Test(expected = NullPointerException.class)
-    public void create_throwsNullPointerException_nullExecutor() throws Exception {
-        AudioTestHarnessGrpcServer.create(
-                /* port= */ 80, /* executor= */ null, Guice.createInjector());
-    }
-
-    @Test(expected = NullPointerException.class)
-    public void create_throwsNullPointerException_nullInjector() throws Exception {
-        AudioTestHarnessGrpcServer.create(
-                /* port= */ 80, Executors.newSingleThreadExecutor(), /* injector= */ null);
+    public void createFactoryWithExecutorService_throwsNullPointerException_nullExecutor()
+            throws Exception {
+        AudioTestHarnessGrpcServerFactory.createFactoryWithExecutorService(/* executor= */ null);
     }
 
     @Test
-    public void createWithDefault_returnsNonNullResult() throws Exception {
-        assertNotNull(AudioTestHarnessGrpcServer.createWithDefault());
+    public void createFactory_returnsNonNullResult() throws Exception {
+        assertNotNull(AudioTestHarnessGrpcServerFactory.createFactory());
     }
 
     @Test
-    public void createWithPort_returnsNonNullResult() throws Exception {
-        assertNotNull(AudioTestHarnessGrpcServer.createOnPort(/* port= */ 80));
+    public void createOnPort_returnsNonNullResult() throws Exception {
+        assertNotNull(
+                AudioTestHarnessGrpcServerFactory.createFactory()
+                        .createOnPort(/* port= */ 80, SharedHostConfiguration.getDefault()));
+    }
+
+    @Test
+    public void createOnTestingPort_returnsNonNullResult() throws Exception {
+        assertNotNull(
+                AudioTestHarnessGrpcServerFactory.createFactory()
+                        .createOnTestingPort(SharedHostConfiguration.getDefault()));
+    }
+
+    @Test
+    public void createOnNextAvailablePort_returnsNonNullResult() throws Exception {
+        assertNotNull(
+                AudioTestHarnessGrpcServerFactory.createFactory()
+                        .createOnNextAvailablePort(SharedHostConfiguration.getDefault()));
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void createOnPort_throwsExceptionWhenInvalidGuiceModuleProvided() throws Exception {
+        AudioTestHarnessGrpcServerFactory.createInternal(
+                        Executors.newSingleThreadExecutor(),
+                        new AbstractModule() {
+                            @Override
+                            protected void configure() {}
+                        })
+                .createOnPort(8080, /* sharedHostConfiguration= */ null);
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void createOnTestingPort_throwsExceptionWhenInvalidGuiceModuleProvided()
+            throws Exception {
+        AudioTestHarnessGrpcServerFactory.createInternal(
+                        Executors.newSingleThreadExecutor(),
+                        new AbstractModule() {
+                            @Override
+                            protected void configure() {}
+                        })
+                .createOnTestingPort(/* sharedHostConfiguration= */ null);
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void createOnNextAvailablePort_throwsExceptionWhenInvalidGuiceModuleProvided()
+            throws Exception {
+        AudioTestHarnessGrpcServerFactory.createInternal(
+                        Executors.newSingleThreadExecutor(),
+                        new AbstractModule() {
+                            @Override
+                            protected void configure() {}
+                        })
+                .createOnNextAvailablePort(/* sharedHostConfiguration= */ null);
     }
 
     /** Tests for the {@link AudioTestHarnessGrpcServer#open()} method. */
@@ -85,17 +126,6 @@ public class AudioTestHarnessGrpcServerTests {
         server.open();
 
         assertServerRunningAsExpected(port);
-    }
-
-    // Per (b/175643926) the following two tests are ignored since they do not run within Forrest.
-    // They do run (and pass) locally.
-
-    @Ignore
-    @Test(expected = IOException.class)
-    public void open_throwsIOExceptionForMissingServiceDependency() throws Exception {
-        AudioTestHarnessGrpcServer.create(
-                        8080, Executors.newSingleThreadExecutor(), Guice.createInjector())
-                .open();
     }
 
     @Ignore
@@ -137,12 +167,16 @@ public class AudioTestHarnessGrpcServerTests {
             int port, ExecutorService executorService) {
 
         // Build Guice injector to inject test implementation of the Audio Test Harness service.
-        Injector injector =
-                Guice.createInjector(
-                        binder ->
-                                binder.bind(AudioTestHarnessGrpc.AudioTestHarnessImplBase.class)
-                                        .to(AudioTestHarnessTestImpl.class));
-        return AudioTestHarnessGrpcServer.create(port, executorService, injector);
+        return AudioTestHarnessGrpcServerFactory.createInternal(
+                        executorService,
+                        new AbstractModule() {
+                            @Override
+                            protected void configure() {
+                                bind(AudioTestHarnessGrpc.AudioTestHarnessImplBase.class)
+                                        .to(AudioTestHarnessTestImpl.class);
+                            }
+                        })
+                .createOnPort(port, SharedHostConfiguration.getDefault());
     }
 
     /**
