@@ -35,9 +35,79 @@ fun Rect.toAndroidRect(): android.graphics.Rect {
     return android.graphics.Rect(left, top, right, bottom)
 }
 
-fun ComponentName.toActivityName(): String = this.flattenToShortString()
+/**
+ * Subtracts [other] region from this [this] region
+ */
+fun Region.minus(other: Region): android.graphics.Region = minus(other.toAndroidRegion())
 
-fun ComponentName.toWindowName(): String = this.flattenToString()
+/**
+ * Subtracts [other] region from this [this] region
+ */
+fun Region.minus(other: android.graphics.Region): android.graphics.Region {
+    val thisRegion = this.toAndroidRegion()
+    thisRegion.op(other, android.graphics.Region.Op.XOR)
+    return thisRegion
+}
+
+/**
+ * Adds [other] region to this [this] region
+ */
+fun Region.plus(other: Region): android.graphics.Region = plus(other.toAndroidRegion())
+
+/**
+ * Adds [other] region to this [this] region
+ */
+fun Region.plus(other: android.graphics.Region): android.graphics.Region {
+    val thisRegion = this.toAndroidRegion()
+    thisRegion.op(other, android.graphics.Region.Op.XOR)
+    return thisRegion
+}
+
+/**
+ * Obtains the layer name from the component name.
+ *
+ * See [ComponentName.toWindowName] for additional information
+ */
+fun ComponentName.toLayerName(): String {
+    var result = this.toWindowName()
+    if (result.contains("/") && !result.contains("#")) {
+        result = "$result#"
+    }
+
+    return result
+}
+
+/**
+ * Obtains the activity name from the component name.
+ *
+ * See [ComponentName.toWindowName] for additional information
+ */
+fun ComponentName.toActivityName(): String {
+    return when {
+        this.packageName.isNotEmpty() && this.className.isNotEmpty() -> this.flattenToShortString()
+        this.packageName.isNotEmpty() -> this.packageName
+        this.className.isNotEmpty() -> this.className
+        else -> error("Component name should have an activity of class name")
+    }
+}
+
+/**
+ * Obtains the window name from the component name.
+ *
+ * [ComponentName] builds the string representation as PKG/CLASS, however this doesn't
+ * work for system components such as IME, NavBar and StatusBar, Toast.
+ *
+ * If the component doesn't have a package name, assume it's a system component and return only
+ * the class name
+ */
+fun ComponentName.toWindowName(): String {
+    return when {
+        this.packageName.isNotEmpty() && this.className.isNotEmpty() -> this.flattenToString()
+        this.packageName.isNotEmpty() -> this.packageName
+        this.className.isNotEmpty() -> this.className
+        else -> error("Component name should have an activity of class name")
+    }
+}
 
 private fun executeCommand(uiAutomation: UiAutomation, cmd: String): ByteArray {
     val fileDescriptor = uiAutomation.executeShellCommand(cmd)
