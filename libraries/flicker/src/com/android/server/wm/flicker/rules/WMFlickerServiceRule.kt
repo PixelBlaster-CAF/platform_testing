@@ -16,11 +16,14 @@
 
 package com.android.server.wm.flicker.rules
 
+import androidx.test.platform.app.InstrumentationRegistry
+import com.android.server.wm.flicker.getDefaultFlickerOutputDir
 import com.android.server.wm.flicker.monitor.LayersTraceMonitor
+import com.android.server.wm.flicker.monitor.ScreenRecorder
 import com.android.server.wm.flicker.monitor.TraceMonitor
-import com.android.server.wm.flicker.monitor.TransitionMonitor.Companion.WINSCOPE_EXT
 import com.android.server.wm.flicker.monitor.WindowManagerTraceMonitor
 import com.android.server.wm.flicker.service.FlickerService
+import com.android.server.wm.flicker.service.FlickerService.Companion.getFassFilePath
 import com.android.server.wm.traces.common.layers.LayersTrace
 import com.android.server.wm.traces.common.windowmanager.WindowManagerTrace
 import com.android.server.wm.traces.parser.layers.LayersTraceParser
@@ -29,15 +32,17 @@ import org.junit.rules.TestWatcher
 import org.junit.runner.Description
 import java.nio.file.Files
 import java.nio.file.Path
-import java.nio.file.Paths
 
 /**
  * Collect the WM and SF traces, parse them and call the WM Flicker Service after the test
  */
-open class WMFlickerServiceRule : TestWatcher() {
+open class WMFlickerServiceRule @JvmOverloads constructor(
+    private val outputDir: Path = getDefaultFlickerOutputDir()
+) : TestWatcher() {
     private val traceMonitors = mutableListOf<TraceMonitor>()
-    protected var wmTrace: WindowManagerTrace? = null
-    protected var layersTrace: LayersTrace? = null
+
+    protected var wmTrace: WindowManagerTrace = WindowManagerTrace(emptyArray(), source = "")
+    protected var layersTrace: LayersTrace = LayersTrace(emptyArray(), source = "")
 
     override fun starting(description: Description?) {
         setupMonitors()
@@ -48,34 +53,39 @@ open class WMFlickerServiceRule : TestWatcher() {
     }
 
     override fun finished(description: Description?) {
+        val testTag = description?.methodName ?: "fass"
         traceMonitors.forEach {
             it.stop()
             it.save(testTag)
         }
 
-        wmTrace = getWindowManagerTrace(getFilePath("wm_trace"))
-        layersTrace = getLayersTrace(getFilePath("layers_trace"))
+        Files.createDirectories(outputDir)
+        wmTrace = getWindowManagerTrace(getFassFilePath(outputDir, testTag, "wm_trace"))
+        layersTrace = getLayersTrace(getFassFilePath(outputDir, testTag, "layers_trace"))
 
         val flickerService = FlickerService()
-        if (wmTrace != null && layersTrace != null) {
-            flickerService.process(wmTrace!!, layersTrace!!)
-        }
+        flickerService.process(wmTrace, layersTrace, outputDir, testTag)
     }
 
     private fun setupMonitors() {
         traceMonitors.add(WindowManagerTraceMonitor(outputDir))
         traceMonitors.add(LayersTraceMonitor(outputDir))
+        traceMonitors.add(ScreenRecorder(
+            outputDir,
+            InstrumentationRegistry.getInstrumentation().targetContext)
+        )
     }
 
     /**
      * Remove the WM trace and layers trace files collected from previous test runs.
      */
     private fun cleanupTraceFiles() {
-        Files.deleteIfExists(getFilePath("wm_trace"))
-        Files.deleteIfExists(getFilePath("layers_trace"))
+        Files.list(outputDir).forEach { file ->
+            if (!Files.isDirectory(file)) {
+                Files.delete(file)
+            }
+        }
     }
-
-    private fun getFilePath(file: String) = outputDir.resolve("${testTag}_$file$WINSCOPE_EXT")
 
     /**
      * Parse the window manager trace file.
@@ -97,11 +107,5 @@ open class WMFlickerServiceRule : TestWatcher() {
     private fun getLayersTrace(traceFilePath: Path): LayersTrace {
         val layersTraceByteArray: ByteArray = Files.readAllBytes(traceFilePath)
         return LayersTraceParser.parseFromTrace(layersTraceByteArray)
-    }
-
-    companion object {
-        @JvmStatic
-        private val outputDir = Paths.get("/sdcard/fass")
-        private val testTag = "fass"
     }
 }

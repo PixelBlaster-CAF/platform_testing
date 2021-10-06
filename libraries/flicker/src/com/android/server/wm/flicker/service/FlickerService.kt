@@ -16,14 +16,61 @@
 
 package com.android.server.wm.flicker.service
 
+import android.util.Log
+import com.android.server.wm.flicker.FLICKER_TAG
+import com.android.server.wm.flicker.monitor.TransitionMonitor.Companion.WINSCOPE_EXT
+import com.android.server.wm.flicker.service.assertors.AssertionData
+import com.android.server.wm.traces.common.errors.ErrorTrace
 import com.android.server.wm.traces.common.layers.LayersTrace
+import com.android.server.wm.traces.common.service.TaggingEngine
 import com.android.server.wm.traces.common.windowmanager.WindowManagerTrace
+import com.android.server.wm.traces.parser.errors.writeToFile
+import com.android.server.wm.traces.parser.tags.writeToFile
+import java.nio.file.Path
 
 /**
- * The entry point for WM Flicker Service.
+ * Contains the logic for Flicker as a Service.
  */
-class FlickerService {
-    fun process(wmTrace: WindowManagerTrace, sfTrace: LayersTrace) {
-        // TODO(b/195121852): Call the Tagging Engine and the Assertion Engine
+class FlickerService @JvmOverloads constructor(
+    private val assertions: List<AssertionData> = AssertionData.readConfiguration()
+) {
+    /**
+     * The entry point for WM Flicker Service.
+     *
+     * Calls the Tagging Engine and the Assertion Engine.
+     *
+     * @param wmTrace Window Manager trace
+     * @param layersTrace Surface Flinger trace
+     * @return A list containing all failures
+     */
+    fun process(
+        wmTrace: WindowManagerTrace,
+        layersTrace: LayersTrace,
+        outputDir: Path,
+        testTag: String
+    ): ErrorTrace {
+        val taggingEngine = TaggingEngine(wmTrace, layersTrace) { Log.v("$FLICKER_TAG-PROC", it) }
+        val tagTrace = taggingEngine.run()
+        val tagTraceFile = getFassFilePath(outputDir, testTag, "tag_trace")
+        tagTrace.writeToFile(tagTraceFile)
+
+        val assertionEngine = AssertionEngine(assertions) { Log.v("$FLICKER_TAG-ASSERT", it) }
+        val errorTrace = assertionEngine.analyze(wmTrace, layersTrace, tagTrace)
+        val errorTraceFile = getFassFilePath(outputDir, testTag, "error_trace")
+        errorTrace.writeToFile(errorTraceFile)
+        return errorTrace
+    }
+
+    companion object {
+        /**
+         * Returns the computed path for the Fass files.
+         *
+         * @param outputDir the output directory for the trace file
+         * @param testTag the tag to identify the test
+         * @param file the name of the trace file
+         * @return the path to the trace file
+         */
+        internal fun getFassFilePath(outputDir: Path, testTag: String, file: String): Path =
+                outputDir.resolve("${testTag}_$file$WINSCOPE_EXT")
     }
 }

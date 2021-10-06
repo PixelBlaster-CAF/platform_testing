@@ -83,12 +83,13 @@ class ErrorTraceParserUtil {
                                     message = errorProto.message,
                                     layerId = errorProto.layerId,
                                     windowToken = errorProto.windowToken,
-                                    taskId = errorProto.taskId
+                                    taskId = errorProto.taskId,
+                                    assertionName = errorProto.assertionName
                                 ))
                     }
                     states.add(
                             ErrorState(
-                                timestamp = stateProto.timestamp,
+                                _timestamp = stateProto.timestamp.toString(),
                                 errors = errors.toTypedArray()))
                 }
                 traceParseTime += errorParseTime
