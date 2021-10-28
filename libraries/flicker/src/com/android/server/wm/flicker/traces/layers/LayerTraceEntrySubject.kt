@@ -16,16 +16,15 @@
 
 package com.android.server.wm.flicker.traces.layers
 
-import android.content.ComponentName
 import com.android.server.wm.flicker.assertions.Assertion
 import com.android.server.wm.flicker.assertions.FlickerSubject
 import com.android.server.wm.flicker.traces.FlickerFailureStrategy
 import com.android.server.wm.flicker.traces.FlickerSubjectException
 import com.android.server.wm.flicker.traces.RegionSubject
+import com.android.server.wm.traces.common.FlickerComponentName
 import com.android.server.wm.traces.common.layers.Layer
 import com.android.server.wm.traces.common.layers.LayerTraceEntry
 import com.android.server.wm.traces.common.layers.LayersTrace
-import com.android.server.wm.traces.parser.toLayerName
 import com.google.common.truth.ExpectFailure
 import com.google.common.truth.Fact
 import com.google.common.truth.FailureMetadata
@@ -107,7 +106,7 @@ class LayerTraceEntrySubject private constructor(
      *   the visible region when the information is not available from the CE
      */
     fun visibleRegion(
-        component: ComponentName? = null,
+        component: FlickerComponentName? = null,
         useCompositionEngineRegionOnly: Boolean = true
     ): RegionSubject {
         val layerName = component?.toLayerName() ?: ""
@@ -115,7 +114,11 @@ class LayerTraceEntrySubject private constructor(
             .filter { it.name.contains(layerName) }
 
         if (selectedLayers.isEmpty()) {
-            fail(Fact.fact("Could not find", layerName))
+            fail(listOf(
+                Fact.fact(ASSERTION_TAG, "visibleRegion(${component?.toLayerName() ?: "<any>"})"),
+                Fact.fact("Use composition engine region", useCompositionEngineRegionOnly),
+                Fact.fact("Could not find", layerName))
+            )
         }
 
         val visibleLayers = selectedLayers.filter { it.isVisible }
@@ -133,11 +136,12 @@ class LayerTraceEntrySubject private constructor(
      *
      * @param component Name of the layers to search
      */
-    fun contains(component: ComponentName): LayerTraceEntrySubject = apply {
+    fun contains(component: FlickerComponentName): LayerTraceEntrySubject = apply {
         val layerName = component.toLayerName()
         val found = entry.flattenedLayers.any { it.name.contains(layerName) }
         if (!found) {
-            fail(Fact.fact("Could not find", layerName))
+            fail(Fact.fact(ASSERTION_TAG, "contains(${component.toLayerName()})"),
+                Fact.fact("Could not find", layerName))
         }
     }
 
@@ -146,10 +150,11 @@ class LayerTraceEntrySubject private constructor(
      *
      * @param component Name of the layers to search
      */
-    fun notContains(component: ComponentName): LayerTraceEntrySubject = apply {
+    fun notContains(component: FlickerComponentName): LayerTraceEntrySubject = apply {
         val layerName = component.toLayerName()
         val foundEntry = subjects.firstOrNull { it.name.contains(layerName) }
-        foundEntry?.fail(Fact.fact("Could find", foundEntry))
+        foundEntry?.fail(Fact.fact(ASSERTION_TAG, "notContains(${component.toLayerName()})"),
+            Fact.fact("Could find", foundEntry))
     }
 
     /**
@@ -157,7 +162,7 @@ class LayerTraceEntrySubject private constructor(
      *
      * @param component Name of the layers to search
      */
-    fun isVisible(component: ComponentName): LayerTraceEntrySubject = apply {
+    fun isVisible(component: FlickerComponentName): LayerTraceEntrySubject = apply {
         contains(component)
         var target: FlickerSubject? = null
         var reason: Fact? = null
@@ -180,7 +185,9 @@ class LayerTraceEntrySubject private constructor(
             break
         }
 
-        reason?.run { target?.fail(reason) }
+        reason?.run {
+            target?.fail(Fact.fact(ASSERTION_TAG, "isVisible(${component.toLayerName()})"), reason)
+        }
     }
 
     /**
@@ -189,7 +196,7 @@ class LayerTraceEntrySubject private constructor(
      *
      * @param component Name of the layers to search
      */
-    fun isInvisible(component: ComponentName): LayerTraceEntrySubject = apply {
+    fun isInvisible(component: FlickerComponentName): LayerTraceEntrySubject = apply {
         try {
             isVisible(component)
         } catch (e: FlickerSubjectException) {
@@ -201,7 +208,8 @@ class LayerTraceEntrySubject private constructor(
         val layerName = component.toLayerName()
         val foundEntry = subjects
                 .firstOrNull { it.name.contains(layerName) && it.isVisible }
-        foundEntry?.fail(Fact.fact("Is visible", foundEntry))
+        foundEntry?.fail(Fact.fact(ASSERTION_TAG, "isInvisible(${component.toLayerName()})"),
+            Fact.fact("Is visible", foundEntry))
     }
 
     /**
@@ -212,7 +220,7 @@ class LayerTraceEntrySubject private constructor(
      *
      * @return LayerSubject that can be used to make assertions on a single layer matching
      */
-    fun layer(component: ComponentName): LayerSubject {
+    fun layer(component: FlickerComponentName): LayerSubject {
         val name = component.toLayerName()
         return layer {
             it.name.contains(name)

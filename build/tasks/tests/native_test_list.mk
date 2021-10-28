@@ -47,7 +47,6 @@ native_tests := \
     camera_client_test \
     clatd_test \
     confirmationui_invocation_test \
-    crashcollector \
     debuggerd_test \
     doh_ffi_test \
     doh_unit_test \
@@ -244,4 +243,8 @@ native_tests := \
 
 ifeq ($(BOARD_IS_AUTOMOTIVE), true)
 native_tests += libwatchdog_test
+endif
+
+ifneq ($(strip $(BOARD_PERFSETUP_SCRIPT)),)
+native_tests += perf-setup
 endif
