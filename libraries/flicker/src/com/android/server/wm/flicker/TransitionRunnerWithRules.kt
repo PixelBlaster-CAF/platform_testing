@@ -16,14 +16,7 @@
 
 package com.android.server.wm.flicker
 
-import android.platform.test.rule.NavigationModeRule
-import android.platform.test.rule.PressHomeRule
-import android.platform.test.rule.UnlockScreenRule
-import com.android.server.wm.flicker.rules.ChangeDisplayOrientationRule
-import com.android.server.wm.flicker.rules.LaunchAppRule
-import com.android.server.wm.flicker.rules.RemoveAllTasksButHomeRule
-import com.android.server.wm.traces.common.FlickerComponentName
-import org.junit.rules.RuleChain
+import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 
@@ -32,30 +25,8 @@ import org.junit.runners.model.Statement
  *
  * Allow for easier reuse of test rules
  */
-class TransitionRunnerWithRules(private val testConfig: Map<String, Any?>) : TransitionRunner() {
+class TransitionRunnerWithRules(private val setupRules: TestRule) : TransitionRunner() {
     private var result: FlickerResult? = null
-
-    /**
-     * Create the default flicker test setup rules. In order:
-     *   - unlock device
-     *   - change orientation
-     *   - change navigation mode
-     *   - launch an app
-     *   - remove all apps
-     *   - go to home screen
-     *
-     * (b/186740751) An app should be launched because, after changing the navigation mode,
-     * the first app launch is handled as a screen size change (similar to a rotation), this
-     * causes different problems during testing (e.g. IME now shown on app launch)
-     */
-    private fun buildDefaultSetupRules(): RuleChain {
-        return RuleChain.outerRule(UnlockScreenRule())
-            .around(NavigationModeRule(testConfig.navBarMode))
-            .around(LaunchAppRule(DUMMY_APP))
-            .around(RemoveAllTasksButHomeRule())
-            .around(ChangeDisplayOrientationRule(testConfig.startRotation))
-            .around(PressHomeRule())
-    }
 
     private fun buildTransitionRule(flicker: Flicker): Statement {
         return object : Statement() {
@@ -70,7 +41,6 @@ class TransitionRunnerWithRules(private val testConfig: Map<String, Any?>) : Tra
     }
 
     private fun buildTransitionChain(flicker: Flicker): Statement {
-        val setupRules = buildDefaultSetupRules()
         val transitionRule = buildTransitionRule(flicker)
         return setupRules.apply(transitionRule, Description.EMPTY)
     }
@@ -93,10 +63,5 @@ class TransitionRunnerWithRules(private val testConfig: Map<String, Any?>) : Tra
         } finally {
             cleanUp()
         }
-    }
-
-    companion object {
-        private val DUMMY_APP = FlickerComponentName("com.google.android.apps.messaging",
-            "com.google.android.apps.messaging.ui.ConversationListActivity")
     }
 }

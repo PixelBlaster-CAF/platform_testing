@@ -17,7 +17,9 @@
 package com.android.server.wm.flicker.rules
 
 import android.app.Instrumentation
+import android.util.Log
 import androidx.test.platform.app.InstrumentationRegistry
+import com.android.server.wm.flicker.FLICKER_TAG
 import com.android.server.wm.flicker.helpers.StandardAppHelper
 import com.android.server.wm.traces.common.FlickerComponentName
 import com.android.server.wm.traces.parser.windowmanager.WindowManagerStateHelper
@@ -27,18 +29,25 @@ import org.junit.runner.Description
 /**
  * Launched an app before the test
  *
- * @param component App to launch
  * @param instrumentation Instrumentation mechanism to use
+ * @param wmHelper WM/SF synchronization helper
+ * @param appHelper App to launch
  */
-data class LaunchAppRule @JvmOverloads constructor(
-    private val component: FlickerComponentName,
-    private val appName: String = "",
-    private val instrumentation: Instrumentation = InstrumentationRegistry.getInstrumentation()
+class LaunchAppRule @JvmOverloads constructor(
+    private val appHelper: StandardAppHelper,
+    private val instrumentation: Instrumentation = appHelper.mInstrumentation,
+    private val wmHelper: WindowManagerStateHelper = WindowManagerStateHelper()
 ) : TestWatcher() {
-    private val appHelper = StandardAppHelper(instrumentation, appName, component)
-    private val wmHelper = WindowManagerStateHelper()
+    @JvmOverloads
+    constructor(
+        component: FlickerComponentName,
+        appName: String = "",
+        instrumentation: Instrumentation = InstrumentationRegistry.getInstrumentation(),
+        wmHelper: WindowManagerStateHelper = WindowManagerStateHelper()
+    ): this(StandardAppHelper(instrumentation, appName, component), instrumentation, wmHelper)
 
     override fun starting(description: Description?) {
+        Log.v(FLICKER_TAG, "Launching app $appHelper")
         appHelper.launchViaIntent()
         appHelper.exit(wmHelper)
     }
