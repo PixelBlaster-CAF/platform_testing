@@ -27,36 +27,31 @@ import org.junit.runner.Description;
 /** This rule allows to execute CUJ while YouTube in pip state. */
 public class YouTubePipRule extends TestWatcher {
 
-    @VisibleForTesting static final String SEARCH_KEYWORD = "youtube-search-keyword";
-    String searchKeyword = "no ads video";
-
-    @VisibleForTesting static final String YOUTUBE_SEARCH_TIMEOUT = "youtube-search-timeout";
-    long searchTimeout = 5000;
-
     @VisibleForTesting static final String YOUTUBE_PLAYBACK_TIMEOUT = "youtube-playback-time";
     long playbackTimeout = 2000;
+
+    @VisibleForTesting static final String VIDEO_NAME = "video-name";
+    String videoName = "test-one-hour-video";
 
     private static HelperAccessor<IYouTubeHelper> sYouTubeHelper =
             new HelperAccessor<>(IYouTubeHelper.class).withPrefix("YouTubeHelper");
 
     @Override
     protected void starting(Description description) {
-        searchKeyword = getArguments().getString(SEARCH_KEYWORD, "no ads video");
-        searchTimeout = Long.valueOf(getArguments().getString(YOUTUBE_SEARCH_TIMEOUT, "5000"));
         playbackTimeout = Long.valueOf(getArguments().getString(YOUTUBE_PLAYBACK_TIMEOUT, "2000"));
+        videoName = getArguments().getString(VIDEO_NAME, "test-one-hour-video");
 
         sYouTubeHelper.get().open();
-        sYouTubeHelper.get().goToSearchPage();
-        sYouTubeHelper.get().searchVideo(searchKeyword);
-        sYouTubeHelper.get().waitForSearchResults(searchTimeout);
-        sYouTubeHelper.get().playSearchResultPageVideo();
+        sYouTubeHelper.get().goToYourVideos();
+        SystemClock.sleep(playbackTimeout);
+        sYouTubeHelper.get().playYourVideo(videoName);
+        SystemClock.sleep(playbackTimeout);
         sYouTubeHelper.get().goToYouTubePip();
         SystemClock.sleep(playbackTimeout);
     }
 
     @Override
     protected void finished(Description description) {
-        sYouTubeHelper.get().backFromYouTubeFromPip();
-        sYouTubeHelper.get().exit();
+        executeShellCommand(String.format("am force-stop %s", sYouTubeHelper.get().getPackage()));
     }
 }
