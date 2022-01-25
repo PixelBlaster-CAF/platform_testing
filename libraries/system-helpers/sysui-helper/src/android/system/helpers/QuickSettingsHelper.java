@@ -25,8 +25,10 @@ import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.graphics.Point;
 import android.provider.Settings;
+import android.text.TextUtils;
 import android.util.Log;
 
+import androidx.annotation.NonNull;
 import androidx.test.uiautomator.By;
 import androidx.test.uiautomator.BySelector;
 import androidx.test.uiautomator.UiDevice;
@@ -34,6 +36,10 @@ import androidx.test.uiautomator.UiObject2;
 import androidx.test.uiautomator.Until;
 
 import org.junit.Assert;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 /** Implement common helper methods for Quick settings. */
 public class QuickSettingsHelper {
@@ -43,12 +49,21 @@ public class QuickSettingsHelper {
     private static final String SYSTEMUI_PACKAGE = "com.android.systemui";
     private static final String QS_DEFAULT_TILES_RES = "quick_settings_tiles_default";
     private static final BySelector FOOTER_SELECTOR = By.res(SYSTEMUI_PACKAGE, "qs_footer");
+    private static final String SYSUI_QS_TILES_SETTING = "sysui_qs_tiles";
 
-    private UiDevice mDevice = null;
-    private Instrumentation mInstrumentation;
-    private String mDefaultQSTileList = "";
+    @NonNull private final UiDevice mDevice;
+    @NonNull private final Instrumentation mInstrumentation;
+    private List<String> mDefaultQSTileList = null;
+    private List<String> mPreviousQSTileList = null;
 
-    public QuickSettingsHelper(UiDevice device, Instrumentation inst, ContentResolver resolver) {
+    /** @deprecated constructor */
+    @Deprecated
+    public QuickSettingsHelper(
+            @NonNull UiDevice device, @NonNull Instrumentation inst, ContentResolver resolver) {
+        this(device, inst);
+    }
+
+    public QuickSettingsHelper(@NonNull UiDevice device, @NonNull Instrumentation inst) {
         this.mDevice = device;
         mInstrumentation = inst;
         try {
@@ -67,7 +82,8 @@ public class QuickSettingsHelper {
                 sysUIContext
                         .getResources()
                         .getIdentifier(QS_DEFAULT_TILES_RES, "string", SYSTEMUI_PACKAGE);
-        mDefaultQSTileList = sysUIContext.getString(qsTileListResId);
+        final String defaultQSTiles = sysUIContext.getString(qsTileListResId);
+        mDefaultQSTileList = Arrays.asList(defaultQSTiles.split(","));
     }
 
     public enum QuickSettingDefaultTiles {
@@ -82,14 +98,14 @@ public class QuickSettingsHelper {
 
         private final String name;
 
-        private QuickSettingDefaultTiles(String name) {
+        QuickSettingDefaultTiles(String name) {
             this.name = name;
         }
 
         public String getName() {
             return this.name;
         }
-    };
+    }
 
     public enum QuickSettingEditMenuTiles {
         LOCATION("Location"),
@@ -101,14 +117,14 @@ public class QuickSettingsHelper {
 
         private final String name;
 
-        private QuickSettingEditMenuTiles(String name) {
+        QuickSettingEditMenuTiles(String name) {
             this.name = name;
         }
 
         public String getName() {
             return this.name;
         }
-    };
+    }
 
     public void addQuickSettingTileFromEditMenu(String quickSettingTile,
             String quickSettingTileToReplace, String quickSettingTileToCheckForInCSV)
@@ -143,7 +159,7 @@ public class QuickSettingsHelper {
         // added item is present.
         String quickSettingsList =
                 Settings.Secure.getString(
-                        mInstrumentation.getContext().getContentResolver(), "sysui_qs_tiles");
+                        mInstrumentation.getContext().getContentResolver(), SYSUI_QS_TILES_SETTING);
         Assert.assertTrue(
                 quickSettingTile + " not present in qs tiles after addition.",
                 quickSettingsList.contains(quickSettingTileToCheckForInCSV));
@@ -151,28 +167,88 @@ public class QuickSettingsHelper {
 
     /** Sets default quick settings tile list pre-load in SystemUI resource. */
     public void setQuickSettingsDefaultTiles() {
-        modifyListOfQuickSettingsTiles(mDefaultQSTileList);
+        modifyQSTileList(mDefaultQSTileList);
     }
 
+    /** @deprecated Gets the default list of QuickSettings as String format */
+    @Deprecated
     public String getQuickSettingsDefaultTileList() {
+        if (mDefaultQSTileList == null || mDefaultQSTileList.isEmpty()) {
+            return "";
+        }
+        return String.join(",", mDefaultQSTileList);
+    }
+
+    /** Gets the default list of QuickSettings */
+    public List<String> getQSDefaultTileList() {
         return mDefaultQSTileList;
+    }
+
+    /**
+     * Set the tileName to be the first item for QS tiles.
+     *
+     * @param tileName tile name that will been set to the first position.
+     */
+    public void setFirstQS(@NonNull String tileName) {
+        String previousQSTiles =
+                Settings.Secure.getString(
+                        mInstrumentation.getContext().getContentResolver(), SYSUI_QS_TILES_SETTING);
+        mPreviousQSTileList = Arrays.asList(previousQSTiles.split(","));
+
+        ArrayList<String> list = new ArrayList<>(mPreviousQSTileList);
+        for (int i = 0; i < list.size(); ++i) {
+            if (TextUtils.equals(tileName, list.get(i))) {
+                list.remove(i);
+                break;
+            }
+        }
+        list.add(0, tileName);
+        modifyQSTileList(list);
+    }
+
+    /** Reset to previous QS tile list if exist */
+    public void resetToPreviousQSTileList() {
+        if (mPreviousQSTileList == null) {
+            return;
+        }
+        modifyQSTileList(mPreviousQSTileList);
+    }
+
+    /**
+     * @deprecated Sets customized tile list to secure settings entry 'sysui_qs_tiles' directly.
+     * @param commaSeparatedList The quick settings tile list to be set
+     */
+    @Deprecated
+    public void modifyListOfQuickSettingsTiles(String commaSeparatedList) {
+        try {
+            Settings.Secure.putString(
+                    mInstrumentation.getContext().getContentResolver(),
+                    SYSUI_QS_TILES_SETTING,
+                    commaSeparatedList);
+            Thread.sleep(LONG_TIMEOUT);
+        } catch (Resources.NotFoundException | InterruptedException e) {
+            Log.e(LOG_TAG, "modifyListOfQuickSettingsTiles fails!", e);
+        }
     }
 
     /**
      * Sets customized tile list to secure settings entry 'sysui_qs_tiles' directly.
      *
-     * @param commaSeparatedList The quick settings tile list to be set
-     * @throws Exception
+     * @param list The quick settings tile list to be set
      */
-    public void modifyListOfQuickSettingsTiles(String commaSeparatedList) {
+    public void modifyQSTileList(@NonNull List<String> list) {
+        if (list.isEmpty()) {
+            return;
+        }
+
         try {
             Settings.Secure.putString(
                     mInstrumentation.getContext().getContentResolver(),
-                    "sysui_qs_tiles",
-                    commaSeparatedList);
+                    SYSUI_QS_TILES_SETTING,
+                    String.join(",", list));
             Thread.sleep(LONG_TIMEOUT);
         } catch (Resources.NotFoundException | InterruptedException e) {
-            Log.e(LOG_TAG, "modifyListOfQuickSettingsTiles fails!", e);
+            Log.e(LOG_TAG, "modifyQSTileList fails!", e);
         }
     }
 
