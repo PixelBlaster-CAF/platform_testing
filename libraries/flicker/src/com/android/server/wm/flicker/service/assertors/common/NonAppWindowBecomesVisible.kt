@@ -21,6 +21,7 @@ import com.android.server.wm.flicker.traces.windowmanager.WindowManagerTraceSubj
 import com.android.server.wm.traces.common.tags.Tag
 
 open class NonAppWindowBecomesVisible(windowName: String) : ComponentBaseTest(windowName) {
+    /** {@inheritDoc} */
     override fun doEvaluate(
         tag: Tag,
         wmSubject: WindowManagerTraceSubject,
@@ -29,5 +30,6 @@ open class NonAppWindowBecomesVisible(windowName: String) : ComponentBaseTest(wi
         wmSubject.isNonAppWindowInvisible(component)
             .then()
             .isAppWindowVisible(component)
+            .forAllEntries()
     }
 }

@@ -16,11 +16,11 @@
 
 package com.android.server.wm.flicker.service
 
+import android.view.Display
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.UiDevice
-import com.android.server.wm.flicker.helpers.StandardAppHelper
+import com.android.server.wm.flicker.helpers.SampleAppHelper
 import com.android.server.wm.flicker.monitor.withTracing
-import com.android.server.wm.traces.common.FlickerComponentName
 import com.android.server.wm.traces.common.WindowManagerConditionsFactory.hasLayersAnimating
 import com.android.server.wm.traces.common.WindowManagerConditionsFactory.isAppTransitionIdle
 import com.android.server.wm.traces.common.WindowManagerConditionsFactory.isWMStateComplete
@@ -28,27 +28,36 @@ import com.android.server.wm.traces.common.service.TaggingEngine
 import com.android.server.wm.traces.common.tags.Transition
 import com.android.server.wm.traces.parser.windowmanager.WindowManagerStateHelper
 import com.google.common.truth.Truth
+import org.junit.Before
 import org.junit.Test
 
+/**
+ * Contains a test that records a trace and then tag it.
+ *
+ * To run this test: `atest FlickerLibTest:TraceIsTaggableTest`
+ */
 class TraceIsTaggableTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val device = UiDevice.getInstance(instrumentation)
+    private val wmHelper = WindowManagerStateHelper(instrumentation)
+
+    @Before
+    fun setup() {
+        device.pressHome()
+        wmHelper.waitForHomeActivityVisible()
+    }
 
     @Test
     fun canCreateTagsFromDeviceTrace() {
 
         // Generates trace of opening the messaging application from home screen
         val trace = withTracing {
-            device.pressHome()
-
-            val dummyApp = FlickerComponentName("com.google.android.apps.messaging",
-                "com.google.android.apps.messaging.ui.ConversationListActivity")
-            StandardAppHelper(instrumentation, "dummyApp", dummyApp).launchViaIntent()
+            SampleAppHelper(instrumentation).launchViaIntent(wmHelper)
 
             // Wait until transition is fully completed
-            WindowManagerStateHelper().waitFor(
+            wmHelper.waitFor(
                 hasLayersAnimating().negate(),
-                isAppTransitionIdle(/* default display */ 0),
+                isAppTransitionIdle(Display.DEFAULT_DISPLAY),
                 isWMStateComplete()
             )
         }

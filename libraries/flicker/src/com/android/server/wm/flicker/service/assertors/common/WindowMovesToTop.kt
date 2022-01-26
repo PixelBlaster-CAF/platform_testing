@@ -24,6 +24,7 @@ import com.android.server.wm.traces.common.tags.Tag
  * Checks that [component] starts not on top and moves to top during the transition
  */
 open class WindowMovesToTop(windowName: String) : ComponentBaseTest(windowName) {
+    /** {@inheritDoc} */
     override fun doEvaluate(
         tag: Tag,
         wmSubject: WindowManagerTraceSubject,
@@ -32,5 +33,6 @@ open class WindowMovesToTop(windowName: String) : ComponentBaseTest(windowName) 
         wmSubject.isAppWindowNotOnTop(component)
             .then()
             .isAppWindowOnTop(component)
+            .forAllEntries()
     }
 }

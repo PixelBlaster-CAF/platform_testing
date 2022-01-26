@@ -71,7 +71,6 @@ native_tests := \
     keystore2_crypto_test_rust \
     keystore2_selinux_test \
     keystore2_test \
-    lazy_static_device_test_src_lib \
     lazy_static_device_test_tests_test \
     libandroidfw_tests \
     libappfuse_test \
@@ -238,8 +237,7 @@ native_tests := \
     NeuralNetworksTest_static \
     NeuralNetworksTest_utils \
     SurfaceFlinger_test \
-    lmkd_unit_test \
-    vrflinger_test
+    lmkd_unit_test
 
 ifeq ($(BOARD_IS_AUTOMOTIVE), true)
 native_tests += libwatchdog_test
