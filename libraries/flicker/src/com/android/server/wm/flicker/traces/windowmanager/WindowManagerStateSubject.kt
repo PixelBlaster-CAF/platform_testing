@@ -21,13 +21,12 @@ import androidx.annotation.VisibleForTesting
 import com.android.server.wm.flicker.assertions.Assertion
 import com.android.server.wm.flicker.assertions.FlickerSubject
 import com.android.server.wm.flicker.traces.FlickerFailureStrategy
-import com.android.server.wm.flicker.traces.RegionSubject
+import com.android.server.wm.flicker.traces.region.RegionSubject
 import com.android.server.wm.traces.common.FlickerComponentName
-import com.android.server.wm.traces.common.Region
+import com.android.server.wm.traces.common.region.Region
 import com.android.server.wm.traces.common.windowmanager.WindowManagerState
 import com.android.server.wm.traces.common.windowmanager.windows.Activity
 import com.android.server.wm.traces.common.windowmanager.windows.WindowState
-import com.android.server.wm.traces.parser.toAndroidRegion
 import com.google.common.truth.Fact
 import com.google.common.truth.FailureMetadata
 import com.google.common.truth.FailureStrategy
@@ -111,22 +110,45 @@ class WindowManagerStateSubject private constructor(
     }
 
     /**
-     * Obtains the region occupied by all windows with name containing any of [component]
+     * Obtains the region occupied by all windows with name containing any of [components]
+     * alias of [visibleRegion]
      *
-     * @param component Component to search
+     * @param components Components to search
+     * @deprecated using [visibleRegion] is preferred
      */
-    fun frameRegion(component: FlickerComponentName?): RegionSubject {
-        val windowName = component?.toWindowName() ?: ""
-        val selectedWindows = subjects.filter { it.name.contains(windowName) }
+    fun frameRegion(vararg components: FlickerComponentName): RegionSubject {
+        return visibleRegion(*components)
+    }
+
+    /**
+     * Obtains the region occupied by all windows with name containing any of [components]
+     *
+     * @param components Components to search
+     */
+    fun visibleRegion(vararg components: FlickerComponentName): RegionSubject {
+        val windowNames = components.map { it.toWindowName() }
+
+        val selectedWindows = if (components.isEmpty()) {
+            // No filters so use all subjects
+            subjects
+        } else {
+            subjects.filter {
+                subject -> windowNames.any {
+                    layerName -> subject.name.contains(layerName)
+                }
+            }
+        }
 
         if (selectedWindows.isEmpty()) {
-            fail(Fact.fact(ASSERTION_TAG, "frameRegion(${component?.toWindowName() ?: "<any>"})"),
-                    Fact.fact("Could not find", windowName))
+            val str = if (windowNames.isNotEmpty()) windowNames.joinToString() else "<any>"
+            fail(Fact.fact(ASSERTION_TAG, "visibleRegion($str)"),
+                    Fact.fact("Could not find windows", str))
         }
 
         val visibleWindows = selectedWindows.filter { it.isVisible }
-        val frameRegions = visibleWindows.mapNotNull { it.windowState?.frameRegion }.toTypedArray()
-        return RegionSubject.assertThat(frameRegions, this)
+        val visibleRegions = visibleWindows
+                .mapNotNull { it.windowState?.frameRegion }.toTypedArray()
+        return RegionSubject.assertThat(visibleRegions, this, timestamp)
     }
 
     /**
@@ -246,8 +268,8 @@ class WindowManagerStateSubject private constructor(
             val (ourTitle, ourRegion) = regions[i]
             for (j in i + 1 until regions.size) {
                 val (otherTitle, otherRegion) = regions[j]
-                if (ourRegion.toAndroidRegion().op(otherRegion.toAndroidRegion(),
-                        android.graphics.Region.Op.INTERSECT)) {
+                if (ourRegion.op(otherRegion,
+                        Region.Op.INTERSECT)) {
                     val window = foundWindows[ourTitle] ?: error("Window $ourTitle not found")
                     val windowSubject = subjects.first { it.windowState == window }
                     windowSubject.fail(Fact.fact(ASSERTION_TAG,
