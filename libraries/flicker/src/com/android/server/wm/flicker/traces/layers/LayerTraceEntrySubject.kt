@@ -20,7 +20,7 @@ import com.android.server.wm.flicker.assertions.Assertion
 import com.android.server.wm.flicker.assertions.FlickerSubject
 import com.android.server.wm.flicker.traces.FlickerFailureStrategy
 import com.android.server.wm.flicker.traces.FlickerSubjectException
-import com.android.server.wm.flicker.traces.RegionSubject
+import com.android.server.wm.flicker.traces.region.RegionSubject
 import com.android.server.wm.traces.common.FlickerComponentName
 import com.android.server.wm.traces.common.layers.Layer
 import com.android.server.wm.traces.common.layers.LayerTraceEntry
@@ -98,36 +98,46 @@ class LayerTraceEntrySubject private constructor(
     }
 
     /**
-     * Obtains the region occupied by all layers with name containing [component]
+     * Obtains the region occupied by all layers with name containing [components]
      *
-     * @param component Component to search
+     * @param components Components to search for
      * @param useCompositionEngineRegionOnly If true, uses only the region calculated from the
      *   Composition Engine (CE) -- visibleRegion in the proto definition. Otherwise calculates
      *   the visible region when the information is not available from the CE
      */
+    @JvmOverloads
     fun visibleRegion(
-        component: FlickerComponentName? = null,
+        vararg components: FlickerComponentName,
         useCompositionEngineRegionOnly: Boolean = true
     ): RegionSubject {
-        val layerName = component?.toLayerName() ?: ""
-        val selectedLayers = subjects
-            .filter { it.name.contains(layerName) }
+        val layerNames = components.map { it.toLayerName() }
+        val selectedLayers = if (components.isEmpty()) {
+            // No filters so use all subjects
+            subjects
+        } else {
+            subjects.filter {
+                subject -> layerNames.any {
+                    layerName -> subject.name.contains(layerName)
+                }
+            }
+        }
 
         if (selectedLayers.isEmpty()) {
+            val str = if (layerNames.isNotEmpty()) layerNames.joinToString() else "<any>"
             fail(listOf(
-                Fact.fact(ASSERTION_TAG, "visibleRegion(${component?.toLayerName() ?: "<any>"})"),
+                Fact.fact(ASSERTION_TAG, "visibleRegion($str)"),
                 Fact.fact("Use composition engine region", useCompositionEngineRegionOnly),
-                Fact.fact("Could not find", layerName))
+                Fact.fact("Could not find layers", str))
             )
         }
 
         val visibleLayers = selectedLayers.filter { it.isVisible }
         return if (useCompositionEngineRegionOnly) {
             val visibleAreas = visibleLayers.mapNotNull { it.layer?.visibleRegion }.toTypedArray()
-            RegionSubject.assertThat(visibleAreas, this)
+            RegionSubject.assertThat(visibleAreas, this, timestamp)
         } else {
             val visibleAreas = visibleLayers.mapNotNull { it.layer?.screenBounds }.toTypedArray()
-            RegionSubject.assertThat(visibleAreas, this)
+            RegionSubject.assertThat(visibleAreas, this, timestamp)
         }
     }
 
@@ -210,6 +220,52 @@ class LayerTraceEntrySubject private constructor(
                 .firstOrNull { it.name.contains(layerName) && it.isVisible }
         foundEntry?.fail(Fact.fact(ASSERTION_TAG, "isInvisible(${component.toLayerName()})"),
             Fact.fact("Is visible", foundEntry))
+    }
+
+    /**
+     * Asserts that the entry contains a visible splash screen [Layer] for a [layer] with
+     * [Layer.name] containing any of [component].
+     *
+     * @param component Name of the layer to search
+     */
+    fun isSplashScreenVisibleFor(component: FlickerComponentName): LayerTraceEntrySubject = apply {
+        var target: FlickerSubject? = null
+        var reason: Fact? = null
+        val layerActivityRecordFilter = component.toActivityRecordFilter()
+        val filteredLayers = subjects
+                .filter { layerActivityRecordFilter.containsMatchIn(it.name) }
+
+        if (filteredLayers.isEmpty()) {
+            fail(Fact.fact(ASSERTION_TAG, "isSplashScreenVisibleFor(${component.toLayerName()})"),
+                Fact.fact("Could not find Activity Record layer", component.toShortWindowName()))
+            return this
+        }
+
+        // Check the matched activity record layers for containing splash screens
+        for (layer in filteredLayers) {
+            val splashScreenContainers =
+                layer.layer?.children?.filter { it.name.contains("Splash Screen") }
+            val splashScreenLayers = splashScreenContainers?.flatMap {
+                it.children.filter { childLayer ->
+                    childLayer.name.contains("Splash Screen")
+                }
+            }
+
+            if (splashScreenLayers?.all { it.isHiddenByParent || !it.isVisible } ?: true) {
+                reason = Fact.fact("No splash screen visible for", layer.name)
+                target = layer
+                continue
+            }
+            reason = null
+            target = null
+            break
+        }
+
+        reason?.run {
+            target?.fail(
+                Fact.fact(ASSERTION_TAG, "isSplashScreenVisibleFor(${component.toLayerName()})"),
+                reason)
+        }
     }
 
     /**

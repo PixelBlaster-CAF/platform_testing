@@ -16,11 +16,11 @@
 
 package com.android.server.wm.traces.common.layers
 
-import com.android.server.wm.traces.common.Buffer
+import com.android.server.wm.traces.common.ActiveBuffer
 import com.android.server.wm.traces.common.Color
 import com.android.server.wm.traces.common.Rect
 import com.android.server.wm.traces.common.RectF
-import com.android.server.wm.traces.common.Region
+import com.android.server.wm.traces.common.region.Region
 import com.android.server.wm.traces.common.layers.Transform.Companion.isFlagSet
 
 /**
@@ -36,7 +36,7 @@ data class Layer(
     val parentId: Int,
     val z: Int,
     val visibleRegion: Region?,
-    val activeBuffer: Buffer,
+    val activeBuffer: ActiveBuffer,
     val flags: Int,
     val bounds: RectF,
     val color: Color,
@@ -56,7 +56,8 @@ data class Layer(
     val backgroundBlurRadius: Int,
     val crop: Rect?,
     val isRelativeOf: Boolean,
-    val zOrderRelativeOfId: Int
+    val zOrderRelativeOfId: Int,
+    val stackId: Int
 ) {
     val stableId: String = "$type $id $name"
     var parent: Layer? = null
@@ -274,11 +275,24 @@ data class Layer(
             }
         }
 
-    fun contains(innerLayer: Layer): Boolean {
+    /**
+     * Returns true iff the [innerLayer] screen bounds are inside or equal to this layer's
+     * [screenBounds] and neither layers are rotating.
+     */
+    fun contains(innerLayer: Layer, crop: RectF = RectF.EMPTY): Boolean {
         return if (!this.transform.isSimpleRotation || !innerLayer.transform.isSimpleRotation) {
             false
         } else {
-            this.screenBounds.contains(innerLayer.screenBounds)
+            val thisBounds: RectF
+            val innerLayerBounds: RectF
+            if (crop.isNotEmpty) {
+                thisBounds = this.screenBounds.crop(crop)
+                innerLayerBounds = innerLayer.screenBounds.crop(crop)
+            } else {
+                thisBounds = this.screenBounds
+                innerLayerBounds = innerLayer.screenBounds
+            }
+            thisBounds.contains(innerLayerBounds)
         }
     }
 
@@ -298,8 +312,18 @@ data class Layer(
         _coveredBy.addAll(layers)
     }
 
-    fun overlaps(other: Layer): Boolean =
-        !this.screenBounds.intersection(other.screenBounds).isEmpty
+    fun overlaps(other: Layer, crop: RectF = RectF.EMPTY): Boolean {
+        val thisBounds: RectF
+        val otherBounds: RectF
+        if (crop.isNotEmpty) {
+            thisBounds = this.screenBounds.crop(crop)
+            otherBounds = other.screenBounds.crop(crop)
+        } else {
+            thisBounds = this.screenBounds
+            otherBounds = other.screenBounds
+        }
+        return !thisBounds.intersection(otherBounds).isEmpty
+    }
 
     override fun toString(): String {
         return buildString {
