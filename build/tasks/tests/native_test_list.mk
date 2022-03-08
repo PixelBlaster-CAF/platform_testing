@@ -98,12 +98,12 @@ native_tests := \
     liblog-unit-tests \
     libminijail_unittest_gtest \
     libnativehelper_tests \
-    libnetdbpf_test \
+    libnetworkstats_test \
     libprocinfo_test \
     libtextclassifier_tests \
     libsurfaceflinger_unittest \
     libunwindstack_unit_test \
-    libuwb_uci_rust \
+    libuwb_uci_rust_tests \
     libuwb_uci_packet_tests \
     libvintf_test \
     linker-unit-tests \
