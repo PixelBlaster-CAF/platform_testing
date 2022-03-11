@@ -159,6 +159,17 @@ object WindowManagerConditionsFactory {
         ))
     }
 
+    fun isWindowVisible(
+        component: FlickerComponentName,
+        displayId: Int = 0
+    ): Condition<DeviceStateDump<WindowManagerState, LayerTraceEntry>> =
+        ConditionList(
+            containsActivity(component),
+            containsWindow(component),
+            isActivityVisible(component),
+            isWindowSurfaceShown(component),
+            isAppTransitionIdle(displayId))
+
     fun isLayerVisible(
         layerName: String
     ): Condition<DeviceStateDump<WindowManagerState, LayerTraceEntry>> =
